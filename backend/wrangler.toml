@@ -1,0 +1,13 @@
+name = "colony-links-api"
+main = "src/index.js"
+compatibility_date = "2026-11-21"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "colony-links-db"
+database_id = "f698408c-8bc3-407e-bfcf-6af7727536bd"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "colony-links-media"
