@@ -1,6 +1,7 @@
 name = "colony-links-api"
 main = "src/index.js"
 compatibility_date = "2026-11-21"
+compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
 [[d1_databases]]
