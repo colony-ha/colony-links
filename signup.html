@@ -62,7 +62,14 @@ $("authForm").addEventListener("submit",async e=>{
       showNotice(message,true);
       return;
     }
-    showNotice(mode==="signup"?(lang==="ar"?"تم إنشاء حسابك بنجاح! أصبحت مسجّل الدخول.":lang==="fr"?"Compte créé avec succès ! Vous êtes connecté.":"Account created successfully! You are now signed in."):(lang==="ar"?"تم تسجيل الدخول بنجاح!":lang==="fr"?"Connexion réussie !":"Logged in successfully!"));
+    const sessionResponse=await fetch("/api/auth/get-session",{method:"GET",credentials:"same-origin",cache:"no-store"});
+    const sessionData=await sessionResponse.json().catch(()=>null);
+    if(!sessionResponse.ok||!sessionData?.user){
+      throw new Error(lang==="ar"?"تمت العملية لكن تعذر تأكيد جلسة الدخول. حاول مرة أخرى.":lang==="fr"?"Opération réussie, mais la session n'a pas pu être confirmée. Réessayez.":"The request succeeded, but the sign-in session could not be confirmed. Please try again.");
+    }
+    showNotice(mode==="signup"?(lang==="ar"?"تم إنشاء الحساب بنجاح! جارٍ فتح لوحة التحكم…":lang==="fr"?"Compte créé ! Ouverture du tableau de bord…":"Account created! Opening your dashboard…"):(lang==="ar"?"تم تسجيل الدخول! جارٍ فتح لوحة التحكم…":lang==="fr"?"Connexion réussie ! Ouverture du tableau de bord…":"Login successful! Opening your dashboard…"));
+    location.replace("/dashboard.html");
+    return;
   }catch(error){
     showNotice(lang==="ar"?"تعذر الاتصال بالخادم. حاول مرة أخرى.":lang==="fr"?"Impossible de joindre le serveur. Réessayez.":"Could not reach the server. Please try again.",true);
   }finally{
