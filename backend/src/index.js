@@ -106,6 +106,7 @@ async function handleAdminRoutes(request, env, url) {
     if (ADMIN_EMAILS.has(String(target.email || "").trim().toLowerCase())) return json({ success: false, message: "Administrator accounts are protected from deletion." }, 403);
     await env.DB.batch([
       env.DB.prepare("DELETE FROM profile_links WHERE user_id = ?").bind(userId),
+      env.DB.prepare("DELETE FROM profile_socials WHERE user_id = ?").bind(userId),
       env.DB.prepare("DELETE FROM profiles WHERE user_id = ?").bind(userId),
       env.DB.prepare("DELETE FROM session WHERE userId = ?").bind(userId),
       env.DB.prepare("DELETE FROM account WHERE userId = ?").bind(userId),
@@ -119,6 +120,15 @@ async function handleAdminRoutes(request, env, url) {
 
 async function handleProfileRoutes(request, env, url) {
   const auth = createAuth(env);
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_socials (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    url TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+  )`).run();
   if (url.pathname === "/api/profile/me" || url.pathname.startsWith("/api/public/profile/")) await ensureProfileTemplateColumn(env);
 
   if (url.pathname === "/api/profile/avatar" && request.method === "POST") {
@@ -154,6 +164,56 @@ async function handleProfileRoutes(request, env, url) {
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     const access = await getEffectiveAccess(env, session.user);
     return json({ success: true, access });
+  }
+
+  if (url.pathname === "/api/profile/socials" && request.method === "GET") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const result = await env.DB.prepare("SELECT id, platform, url, sort_order FROM profile_socials WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC").bind(session.user.id).all();
+    return json({ success: true, socials: result.results || [] });
+  }
+
+  if (url.pathname === "/api/profile/socials" && request.method === "POST") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const platforms = new Set(["instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","website"]);
+    const platform = String(body.platform || "").trim().toLowerCase();
+    const rawUrl = String(body.url || "").trim().slice(0, 2048);
+    let parsedUrl;
+    try { parsedUrl = new URL(rawUrl); } catch { return json({ success: false, message: "Enter a valid social profile URL." }, 400); }
+    if (!platforms.has(platform)) return json({ success: false, message: "Choose a supported social platform." }, 400);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
+    const count = await env.DB.prepare("SELECT COUNT(*) AS total FROM profile_socials WHERE user_id = ?").bind(session.user.id).first();
+    if (Number(count?.total || 0) >= 12) return json({ success: false, message: "You can add up to 12 social links." }, 400);
+    const id = crypto.randomUUID();
+    const order = await env.DB.prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM profile_socials WHERE user_id = ?").bind(session.user.id).first();
+    await env.DB.prepare("INSERT INTO profile_socials (id,user_id,platform,url,sort_order) VALUES (?,?,?,?,?)").bind(id,session.user.id,platform,parsedUrl.href,order?.next_order ?? 0).run();
+    return json({ success: true, social: { id, platform, url: parsedUrl.href, sort_order: order?.next_order ?? 0 } }, 201);
+  }
+
+  const socialMatch = url.pathname.match(/^\\/api\\/profile\\/socials\\/([a-zA-Z0-9-]+)$/);
+  if (socialMatch && (request.method === "PUT" || request.method === "DELETE")) {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const id = socialMatch[1];
+    if (request.method === "DELETE") {
+      const result = await env.DB.prepare("DELETE FROM profile_socials WHERE id = ? AND user_id = ?").bind(id,session.user.id).run();
+      if (!result.meta?.changes) return json({ success: false, message: "Social link not found." }, 404);
+      return json({ success: true });
+    }
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const platforms = new Set(["instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","website"]);
+    const platform = String(body.platform || "").trim().toLowerCase();
+    const rawUrl = String(body.url || "").trim().slice(0, 2048);
+    let parsedUrl;
+    try { parsedUrl = new URL(rawUrl); } catch { return json({ success: false, message: "Enter a valid social profile URL." }, 400); }
+    if (!platforms.has(platform) || !["http:","https:"].includes(parsedUrl.protocol)) return json({ success: false, message: "Choose a supported platform and a valid HTTP or HTTPS URL." }, 400);
+    const result = await env.DB.prepare("UPDATE profile_socials SET platform = ?, url = ? WHERE id = ? AND user_id = ?").bind(platform,parsedUrl.href,id,session.user.id).run();
+    if (!result.meta?.changes) return json({ success: false, message: "Social link not found." }, 404);
+    return json({ success: true, social: { id, platform, url: parsedUrl.href } });
   }
 
   if (url.pathname === "/api/profile/stats" && request.method === "GET") {
@@ -342,7 +402,10 @@ async function handleProfileRoutes(request, env, url) {
     const links = await env.DB.prepare(
       "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     ).bind(username).all();
-    return json({ success: true, profile: { ...publicProfile, avatarUrl: publicProfile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(publicProfile.avatar_key) : "" }, links: links.results || [] });
+    const socials = await env.DB.prepare(
+      "SELECT id, platform, url, sort_order FROM profile_socials WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC"
+    ).bind(ownerId).all();
+    return json({ success: true, profile: { ...publicProfile, avatarUrl: publicProfile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(publicProfile.avatar_key) : "" }, links: links.results || [], socials: socials.results || [] });
   }
 
   return null;
