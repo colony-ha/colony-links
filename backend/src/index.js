@@ -610,7 +610,7 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
+    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/account/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
       try {
         const response = await handleProfileRoutes(request, env, url);
         if (response) return response;
