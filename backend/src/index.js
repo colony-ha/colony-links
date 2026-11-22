@@ -25,6 +25,25 @@ async function handleAdminRoutes(request, env, url) {
     return json({ success: true, isAdmin: true, admin: { name: session.user.name || "", email } });
   }
 
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, plan TEXT NOT NULL CHECK(plan IN ('free','pro','business')), status TEXT NOT NULL DEFAULT 'active', source TEXT NOT NULL DEFAULT 'admin_free', starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', granted_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
+  if (url.pathname === "/api/admin/subscriptions" && request.method === "GET") {
+    const result = await env.DB.prepare("SELECT subscriptions.*, user.email, user.name FROM subscriptions JOIN user ON user.id = subscriptions.user_id ORDER BY subscriptions.created_at DESC LIMIT 200").all();
+    return json({ success: true, subscriptions: result.results || [] });
+  }
+  if (url.pathname === "/api/admin/subscriptions/grant" && request.method === "POST") {
+    let body; try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const email = String(body.email || "").trim().toLowerCase();
+    const plan = String(body.plan || "").toLowerCase();
+    const months = Number(body.months);
+    const reason = String(body.reason || "").trim().slice(0, 180);
+    if (!email || !["free","pro","business"].includes(plan) || !Number.isInteger(months) || months < 1 || months > 12) return json({ success: false, message: "Enter a valid account, plan and duration (1–12 months)." }, 400);
+    const target = await env.DB.prepare("SELECT id FROM user WHERE lower(email) = ?").bind(email).first();
+    if (!target) return json({ success: false, message: "Account not found." }, 404);
+    const starts = new Date(); const ends = new Date(starts); ends.setMonth(ends.getMonth() + months);
+    const id = crypto.randomUUID();
+    await env.DB.prepare("INSERT INTO subscriptions (id,user_id,plan,status,source,starts_at,ends_at,reason,granted_by) VALUES (?,?,?,'active','admin_free',?,?,?,?,?)".replace("?,?,?,?,?)","?,?,?,?)")).bind(id,target.id,plan,starts.toISOString(),ends.toISOString(),reason,session.user.id).run();
+    return json({ success: true, subscription: { id, email, plan, starts_at: starts.toISOString(), ends_at: ends.toISOString(), source: "admin_free" } });
+  }
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     const query = String(url.searchParams.get("q") || "").trim().slice(0, 100);
     const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1));
