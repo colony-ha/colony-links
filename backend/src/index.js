@@ -318,7 +318,7 @@ async function handleProfileRoutes(request, env, url) {
       destination = "mailto:" + email;
     } else if (type === "phone") {
       const phone = rawValue.replace(/^tel:/i, "").trim();
-      if (!/^[+0-9() .-]{5,30}$/.test(phone) || !/[0-9]{5}/.test(phone)) return json({ success: false, message: "Enter a valid phone number." }, 400);
+      if (!/^[+0-9() .-]{5,30}$/.test(phone) || (phone.match(/[0-9]/g) || []).length < 5) return json({ success: false, message: "Enter a valid phone number." }, 400);
       destination = "tel:" + phone.replace(/\s+/g, "");
     } else {
       let parsed;
@@ -364,7 +364,7 @@ async function handleProfileRoutes(request, env, url) {
       destination = "mailto:" + email;
     } else if (type === "phone") {
       const phone = rawValue.replace(/^tel:/i, "").trim();
-      if (!/^[+0-9() .-]{5,30}$/.test(phone) || !/[0-9]{5}/.test(phone)) return json({ success: false, message: "Enter a valid phone number." }, 400);
+      if (!/^[+0-9() .-]{5,30}$/.test(phone) || (phone.match(/[0-9]/g) || []).length < 5) return json({ success: false, message: "Enter a valid phone number." }, 400);
       destination = "tel:" + phone.replace(/\\s+/g, "");
     } else {
       let parsed;
