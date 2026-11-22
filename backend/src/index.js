@@ -41,6 +41,36 @@ async function handleAdminRoutes(request, env, url) {
     return json({ success: true, users: users.results || [], total: count?.total || 0, page, limit });
   }
 
+  const userMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+  if (userMatch && request.method === "PUT") {
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const name = String(body.name || "").trim().slice(0, 80);
+    if (!name) return json({ success: false, message: "Name is required." }, 400);
+    const userId = decodeURIComponent(userMatch[1]);
+    const target = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(userId).first();
+    if (!target) return json({ success: false, message: "User not found." }, 404);
+    if (ADMIN_EMAILS.has(String(target.email || "").trim().toLowerCase())) return json({ success: false, message: "Administrator accounts cannot be edited here." }, 403);
+    await env.DB.prepare("UPDATE user SET name = ?, updatedAt = ? WHERE id = ?").bind(name, new Date().toISOString(), userId).run();
+    return json({ success: true, user: { id: userId, name } });
+  }
+
+  if (userMatch && request.method === "DELETE") {
+    const userId = decodeURIComponent(userMatch[1]);
+    if (userId === session.user.id) return json({ success: false, message: "You cannot delete your own administrator account." }, 403);
+    const target = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(userId).first();
+    if (!target) return json({ success: false, message: "User not found." }, 404);
+    if (ADMIN_EMAILS.has(String(target.email || "").trim().toLowerCase())) return json({ success: false, message: "Administrator accounts are protected from deletion." }, 403);
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM profile_links WHERE user_id = ?").bind(userId),
+      env.DB.prepare("DELETE FROM profiles WHERE user_id = ?").bind(userId),
+      env.DB.prepare("DELETE FROM session WHERE userId = ?").bind(userId),
+      env.DB.prepare("DELETE FROM account WHERE userId = ?").bind(userId),
+      env.DB.prepare("DELETE FROM user WHERE id = ?").bind(userId)
+    ]);
+    return json({ success: true });
+  }
+
   return json({ success: false, message: "Not found" }, 404);
 }
 
