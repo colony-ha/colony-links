@@ -3,10 +3,45 @@ import { getMigrations } from "better-auth/db/migration";
 
 
 
+const ADMIN_EMAILS = new Set(["hanih9823@gmail.com", "colonyus666@gmail.com"]);
+
 const RESERVED_USERNAMES = new Set(["admin","administrator","api","www","signup","login","logout","dashboard","profile","settings","support","help","about","terms","privacy","pricing","billing","assets","static","auth","null","undefined"]);
 
 async function getCurrentSession(auth, request) {
   return auth.api.getSession({ headers: request.headers });
+}
+
+async function handleAdminRoutes(request, env, url) {
+  const auth = createAuth(env);
+  const session = await getCurrentSession(auth, request);
+  if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+
+  const email = String(session.user.email || "").trim().toLowerCase();
+  if (!ADMIN_EMAILS.has(email)) return json({ success: false, message: "Forbidden" }, 403);
+
+  if (url.pathname === "/api/admin/me" && request.method === "GET") {
+    return json({ success: true, isAdmin: true, admin: { name: session.user.name || "", email } });
+  }
+
+  if (url.pathname === "/api/admin/users" && request.method === "GET") {
+    const query = String(url.searchParams.get("q") || "").trim().slice(0, 100);
+    const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1));
+    const limit = 25;
+    const offset = (page - 1) * limit;
+    const pattern = "%" + query.replace(/[\\%_]/g, "\\async function handleProfileRoutes(request, env, url) {") + "%";
+    const where = query ? "WHERE name LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\'" : "";
+    const countQuery = "SELECT COUNT(*) AS total FROM user " + where;
+    const usersQuery = "SELECT id, name, email, createdAt FROM user " + where + " ORDER BY createdAt DESC LIMIT ? OFFSET ?";
+    const countStatement = env.DB.prepare(countQuery);
+    const usersStatement = env.DB.prepare(usersQuery);
+    const count = query ? await countStatement.bind(pattern, pattern).first() : await countStatement.first();
+    const users = query
+      ? await usersStatement.bind(pattern, pattern, limit, offset).all()
+      : await usersStatement.bind(limit, offset).all();
+    return json({ success: true, users: users.results || [], total: count?.total || 0, page, limit });
+  }
+
+  return json({ success: false, message: "Not found" }, 404);
 }
 
 async function handleProfileRoutes(request, env, url) {
@@ -331,7 +366,7 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
+    if (url.pathname.startsWith("/api/admin/")) {\n      try {\n        const response = await handleAdminRoutes(request, env, url);\n        if (response) return response;\n      } catch (error) {\n        return json({ success: false, message: "Admin service error" }, 500);\n      }\n    }\n\n    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
       try {
         const response = await handleProfileRoutes(request, env, url);
         if (response) return response;
