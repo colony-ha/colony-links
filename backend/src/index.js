@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { getMigrations } from "better-auth/db/migration";
+import { APIError } from "better-auth/api";
 
 
 
@@ -12,6 +13,7 @@ async function getCurrentSession(auth, request) {
 }
 
 async function handleAdminRoutes(request, env, url) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_user_status (user_id TEXT PRIMARY KEY NOT NULL, is_disabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
   const auth = createAuth(env);
   const session = await getCurrentSession(auth, request);
   if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
@@ -31,7 +33,7 @@ async function handleAdminRoutes(request, env, url) {
     const pattern = "%" + query + "%";
     const where = query ? "WHERE name LIKE ? OR email LIKE ?" : "";
     const countQuery = "SELECT COUNT(*) AS total FROM user " + where;
-    const usersQuery = "SELECT id, name, email, createdAt FROM user " + where + " ORDER BY createdAt DESC LIMIT ? OFFSET ?";
+    const usersQuery = "SELECT user.id, user.name, user.email, user.createdAt, COALESCE(admin_user_status.is_disabled, 0) AS isDisabled FROM user LEFT JOIN admin_user_status ON admin_user_status.user_id = user.id " + where.replace(/\bname\b/g, "user.name").replace(/\bemail\b/g, "user.email") + " ORDER BY user.createdAt DESC LIMIT ? OFFSET ?";
     const countStatement = env.DB.prepare(countQuery);
     const usersStatement = env.DB.prepare(usersQuery);
     const count = query ? await countStatement.bind(pattern, pattern).first() : await countStatement.first();
@@ -53,6 +55,22 @@ async function handleAdminRoutes(request, env, url) {
     if (ADMIN_EMAILS.has(String(target.email || "").trim().toLowerCase())) return json({ success: false, message: "Administrator accounts cannot be edited here." }, 403);
     await env.DB.prepare("UPDATE user SET name = ?, updatedAt = ? WHERE id = ?").bind(name, new Date().toISOString(), userId).run();
     return json({ success: true, user: { id: userId, name } });
+  }
+
+  const statusMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/status$/);
+  if (statusMatch && request.method === "PUT") {
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const userId = decodeURIComponent(statusMatch[1]);
+    const disabled = body.disabled === true;
+    if (userId === session.user.id || ADMIN_EMAILS.has(String((await env.DB.prepare("SELECT email FROM user WHERE id = ?").bind(userId).first())?.email || "").trim().toLowerCase())) {
+      return json({ success: false, message: "Administrator accounts cannot be disabled." }, 403);
+    }
+    const target = await env.DB.prepare("SELECT id FROM user WHERE id = ?").bind(userId).first();
+    if (!target) return json({ success: false, message: "User not found." }, 404);
+    await env.DB.prepare("INSERT INTO admin_user_status (user_id, is_disabled, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET is_disabled = excluded.is_disabled, updated_at = CURRENT_TIMESTAMP").bind(userId, disabled ? 1 : 0).run();
+    if (disabled) await env.DB.prepare("DELETE FROM session WHERE userId = ?").bind(userId).run();
+    return json({ success: true, isDisabled: disabled });
   }
 
   if (userMatch && request.method === "DELETE") {
@@ -267,6 +285,19 @@ function createAuth(env) {
   return betterAuth({
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session) => {
+            const status = await env.DB.prepare("SELECT is_disabled FROM admin_user_status WHERE user_id = ?").bind(session.userId).first();
+            if (status?.is_disabled) {
+              throw new APIError("FORBIDDEN", { message: "This account has been disabled. Contact support." });
+            }
+            return { data: session };
+          }
+        }
+      }
+    },
     baseURL: env.BETTER_AUTH_URL || "https://links.colony.dpdns.org",
     basePath: "/api/auth",
     trustedOrigins: [
@@ -423,6 +454,7 @@ export default {
 
     if (url.pathname.startsWith("/api/auth/")) {
       try {
+        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_user_status (user_id TEXT PRIMARY KEY NOT NULL, is_disabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
         const auth = createAuth(env);
         return await auth.handler(request);
       } catch (error) {
