@@ -21,7 +21,11 @@ function canUseProfileTemplate(template, plan) {
 async function ensureProfileTemplateColumn(env) {
   const columns = await env.DB.prepare("PRAGMA table_info(profiles)").all();
   if (!(columns.results || []).some(column => column.name === "template_key")) {
-    await env.DB.prepare("ALTER TABLE profiles ADD COLUMN template_key TEXT NOT NULL DEFAULT 'classic'").run();
+    try {
+      await env.DB.prepare("ALTER TABLE profiles ADD COLUMN template_key TEXT NOT NULL DEFAULT 'classic'").run();
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("duplicate column")) throw error;
+    }
   }
 }
 
