@@ -27,6 +27,7 @@ async function handleAdminRoutes(request, env, url) {
 
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, plan TEXT NOT NULL CHECK(plan IN ('free','pro','business')), status TEXT NOT NULL DEFAULT 'active', source TEXT NOT NULL DEFAULT 'admin_free', starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', granted_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
   if (url.pathname === "/api/admin/subscriptions" && request.method === "GET") {
+    await env.DB.prepare("UPDATE subscriptions SET status = 'expired' WHERE status = 'active' AND julianday(ends_at) <= julianday('now')").run();
     const result = await env.DB.prepare("SELECT subscriptions.*, user.email, user.name FROM subscriptions JOIN user ON user.id = subscriptions.user_id ORDER BY subscriptions.created_at DESC LIMIT 200").all();
     return json({ success: true, subscriptions: result.results || [] });
   }
