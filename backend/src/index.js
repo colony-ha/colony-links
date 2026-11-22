@@ -27,6 +27,28 @@ async function ensureProfileTemplateColumn(env) {
   }
 }
 
+async function ensureUnifiedLinkColumns(env) {
+  const columns = await env.DB.prepare("PRAGMA table_info(profile_links)").all();
+  const names = new Set((columns.results || []).map(column => column.name));
+  const additions = [
+    ["type", "TEXT NOT NULL DEFAULT 'link'"],
+    ["platform", "TEXT NOT NULL DEFAULT 'website'"],
+    ["icon", "TEXT NOT NULL DEFAULT ''"],
+    ["custom_icon", "TEXT NOT NULL DEFAULT ''"]
+  ];
+  for (const [name, definition] of additions) {
+    if (!names.has(name)) await env.DB.prepare("ALTER TABLE profile_links ADD COLUMN " + name + " " + definition).run();
+  }
+  // Preserve existing social profiles by moving them into the unified links table.
+  await env.DB.prepare(`
+    INSERT OR IGNORE INTO profile_links
+      (id,user_id,title,url,sort_order,is_active,type,platform,icon,custom_icon)
+    SELECT id,user_id,platform,url,sort_order,1,'social',platform,'',''
+    FROM profile_socials
+  `).run();
+  await env.DB.prepare("DELETE FROM profile_socials WHERE id IN (SELECT id FROM profile_links)").run();
+}
+
 function isAdminUser(user) {
   return ADMIN_EMAILS.has(String(user?.email || "").trim().toLowerCase());
 }
@@ -139,6 +161,7 @@ async function handleProfileRoutes(request, env, url) {
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
   )`).run();
   if (url.pathname === "/api/profile/me" || url.pathname.startsWith("/api/public/profile/")) await ensureProfileTemplateColumn(env);
+  await ensureUnifiedLinkColumns(env);
 
   if (url.pathname === "/api/profile/avatar" && request.method === "POST") {
     const session = await getCurrentSession(createAuth(env), request);
@@ -270,7 +293,7 @@ async function handleProfileRoutes(request, env, url) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     const result = await env.DB.prepare(
-      "SELECT id, title, url, sort_order, is_active, created_at FROM profile_links WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC"
+      "SELECT id, title, url, sort_order, is_active, created_at, type, platform, icon, custom_icon FROM profile_links WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC"
     ).bind(session.user.id).all();
     return json({ success: true, links: result.results || [] });
   }
@@ -280,22 +303,41 @@ async function handleProfileRoutes(request, env, url) {
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     let body;
     try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const type = ["link","social","email","phone"].includes(String(body.type || "link")) ? String(body.type || "link") : "link";
+    const platform = String(body.platform || "website").trim().toLowerCase().slice(0,40);
     const title = String(body.title || "").trim().slice(0, 60);
-    const rawUrl = String(body.url || "").trim().slice(0, 2048);
-    let parsedUrl;
-    try { parsedUrl = new URL(rawUrl); } catch { return json({ success: false, message: "Enter a valid URL beginning with https:// or http://." }, 400); }
-    if (!title) return json({ success: false, message: "Link title is required." }, 400);
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
+    const rawValue = String(body.url || "").trim().slice(0, 2048);
+    const icon = String(body.icon || "").trim().slice(0,80);
+    const customIcon = String(body.custom_icon || "");
+    if (!title || !rawValue) return json({ success: false, message: "A title and destination are required." }, 400);
+    if (customIcon && (!/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(customIcon) || customIcon.length > 180000)) return json({ success: false, message: "Custom icon must be a small PNG, JPG or WebP image." }, 400);
+    let destination = "";
+    if (type === "email") {
+      const email = rawValue.replace(/^mailto:/i, "").trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ success: false, message: "Enter a valid email address." }, 400);
+      destination = "mailto:" + email;
+    } else if (type === "phone") {
+      const phone = rawValue.replace(/^tel:/i, "").trim();
+      if (!/^[+0-9() .-]{5,30}$/.test(phone) || !/[0-9]{5}/.test(phone)) return json({ success: false, message: "Enter a valid phone number." }, 400);
+      destination = "tel:" + phone.replace(/\s+/g, "");
+    } else {
+      let parsed;
+      try { parsed = new URL(rawValue); } catch { return json({ success: false, message: "Enter a valid URL beginning with https:// or http://." }, 400); }
+      if (!["http:","https:"].includes(parsed.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
+      destination = parsed.href;
+    }
+    const allowedPlatforms = new Set(["website","instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","pinterest","google_maps","spotify","discord","twitch","reddit","github","threads","medium","behance","dribbble","soundcloud","email","phone","custom"]);
+    if (!allowedPlatforms.has(platform)) return json({ success: false, message: "Choose a supported platform." }, 400);
     const id = crypto.randomUUID();
     const order = await env.DB.prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM profile_links WHERE user_id = ?").bind(session.user.id).first();
     await env.DB.prepare(
-      "INSERT INTO profile_links (id, user_id, title, url, sort_order, is_active) VALUES (?, ?, ?, ?, ?, 1)"
-    ).bind(id, session.user.id, title, parsedUrl.href, order?.next_order ?? 0).run();
-    const link = await env.DB.prepare("SELECT id, title, url, sort_order, is_active FROM profile_links WHERE id = ? AND user_id = ?").bind(id, session.user.id).first();
+      "INSERT INTO profile_links (id,user_id,title,url,sort_order,is_active,type,platform,icon,custom_icon) VALUES (?,?,?,?,?,1,?,?,?,?)"
+    ).bind(id,session.user.id,title,destination,order?.next_order ?? 0,type,platform,icon,customIcon).run();
+    const link = await env.DB.prepare("SELECT id,title,url,sort_order,is_active,type,platform,icon,custom_icon FROM profile_links WHERE id = ? AND user_id = ?").bind(id,session.user.id).first();
     return json({ success: true, link }, 201);
   }
 
-  const linkMatch = url.pathname.match(/^\/api\/profile\/links\/([a-zA-Z0-9-]+)$/);
+  const linkMatch = url.pathname.match(/^\\/api\\/profile\\/links\\/([a-zA-Z0-9-]+)$/);
   if (linkMatch && (request.method === "PUT" || request.method === "DELETE")) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
@@ -307,15 +349,34 @@ async function handleProfileRoutes(request, env, url) {
     }
     let body;
     try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
-    const title = String(body.title || "").trim().slice(0, 60);
-    const rawUrl = String(body.url || "").trim().slice(0, 2048);
-    let parsedUrl;
-    try { parsedUrl = new URL(rawUrl); } catch { return json({ success: false, message: "Enter a valid URL beginning with https:// or http://." }, 400); }
-    if (!title) return json({ success: false, message: "Link title is required." }, 400);
-    if (!["http:", "https:"].includes(parsedUrl.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
-    const result = await env.DB.prepare("UPDATE profile_links SET title = ?, url = ? WHERE id = ? AND user_id = ?").bind(title, parsedUrl.href, id, session.user.id).run();
+    const type = ["link","social","email","phone"].includes(String(body.type || "link")) ? String(body.type || "link") : "link";
+    const platform = String(body.platform || "website").trim().toLowerCase().slice(0,40);
+    const title = String(body.title || "").trim().slice(0,60);
+    const rawValue = String(body.url || "").trim().slice(0,2048);
+    const icon = String(body.icon || "").trim().slice(0,80);
+    const customIcon = String(body.custom_icon || "");
+    if (!title || !rawValue) return json({ success: false, message: "A title and destination are required." }, 400);
+    if (customIcon && (!/^data:image\\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(customIcon) || customIcon.length > 180000)) return json({ success: false, message: "Custom icon must be a small PNG, JPG or WebP image." }, 400);
+    let destination = "";
+    if (type === "email") {
+      const email = rawValue.replace(/^mailto:/i, "").trim();
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return json({ success: false, message: "Enter a valid email address." }, 400);
+      destination = "mailto:" + email;
+    } else if (type === "phone") {
+      const phone = rawValue.replace(/^tel:/i, "").trim();
+      if (!/^[+0-9() .-]{5,30}$/.test(phone) || !/[0-9]{5}/.test(phone)) return json({ success: false, message: "Enter a valid phone number." }, 400);
+      destination = "tel:" + phone.replace(/\\s+/g, "");
+    } else {
+      let parsed;
+      try { parsed = new URL(rawValue); } catch { return json({ success: false, message: "Enter a valid URL beginning with https:// or http://." }, 400); }
+      if (!["http:","https:"].includes(parsed.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
+      destination = parsed.href;
+    }
+    const allowedPlatforms = new Set(["website","instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","pinterest","google_maps","spotify","discord","twitch","reddit","github","threads","medium","behance","dribbble","soundcloud","email","phone","custom"]);
+    if (!allowedPlatforms.has(platform)) return json({ success: false, message: "Choose a supported platform." }, 400);
+    const result = await env.DB.prepare("UPDATE profile_links SET title=?,url=?,type=?,platform=?,icon=?,custom_icon=? WHERE id=? AND user_id=?").bind(title,destination,type,platform,icon,customIcon,id,session.user.id).run();
     if (!result.meta?.changes) return json({ success: false, message: "Link not found." }, 404);
-    const link = await env.DB.prepare("SELECT id, title, url, sort_order, is_active FROM profile_links WHERE id = ? AND user_id = ?").bind(id, session.user.id).first();
+    const link = await env.DB.prepare("SELECT id,title,url,sort_order,is_active,type,platform,icon,custom_icon FROM profile_links WHERE id=? AND user_id=?").bind(id,session.user.id).first();
     return json({ success: true, link });
   }
 
@@ -426,12 +487,9 @@ async function handleProfileRoutes(request, env, url) {
       await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE user_id = ?").bind(ownerId).run();
     }
     const links = await env.DB.prepare(
-      "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
-    ).bind(username).all();
-    const socials = await env.DB.prepare(
-      "SELECT id, platform, url, sort_order FROM profile_socials WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC"
+      "SELECT id,title,url,type,platform,icon,custom_icon FROM profile_links WHERE user_id = ? AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     ).bind(ownerId).all();
-    return json({ success: true, profile: { ...publicProfile, avatarUrl: publicProfile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(publicProfile.avatar_key) : "" }, links: links.results || [], socials: socials.results || [] });
+    return json({ success: true, profile: { ...publicProfile, avatarUrl: publicProfile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(publicProfile.avatar_key) : "" }, links: links.results || [], socials: [] });
   }
 
   return null;
