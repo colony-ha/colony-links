@@ -73,7 +73,7 @@
     .visual .mock-link:hover{filter:brightness(1.15)}
     @media(prefers-reduced-motion:reduce){.visual .profile,.visual .mock-link{animation:none!important;will-change:auto}}
     </style>
-</head>
+  <link rel="manifest" href="/manifest.webmanifest">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n  <link rel="apple-touch-icon" href="/Luxury%20Colony%20Links%20Hub.png">\n</head>
 <body lang="en" dir="ltr">
   <header class="wrap nav">
     <a class="brand" href="#" aria-label="COLONY LINKS home"><img class="brand-logo" src="Luxury%20Colony%20Links%20Hub.png" alt="COLONY LINKS logo"><span>COLONY <span>LINKS</span></span></a>
@@ -120,5 +120,9 @@
     function setLanguage(lang){current=lang;localStorage.setItem("colony-links-lang",lang);document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";document.body.lang=lang;document.body.dir=lang==="ar"?"rtl":"ltr";document.querySelectorAll("[data-i18n]").forEach(el=>{const key=el.dataset.i18n;if(translations[lang][key]!==undefined)el.innerHTML=translations[lang][key]});document.getElementById("langBtn").value=lang}
     document.getElementById("langBtn").addEventListener("change",e=>setLanguage(e.target.value));document.getElementById("year").textContent=new Date().getFullYear();setLanguage(current);
   </script>
-</body>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+</script>\n</body>
 </html>
