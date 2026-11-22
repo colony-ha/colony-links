@@ -38,8 +38,39 @@ let lang=localStorage.getItem("colony-links-lang")||"en";if(!copy[lang])lang="en
 const $=id=>document.getElementById(id);
 function render(){const t=copy[lang];document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";document.body.lang=lang; $("langBtn").textContent=({en:"EN ⌄",fr:"FR ⌄",ar:"عربي ⌄"})[lang];$("heading").textContent=mode==="signup"?t.headingUp:t.headingIn;$("subtitle").textContent=mode==="signup"?t.subUp:t.subIn;$("signupTab").textContent=t.signup;$("loginTab").textContent=t.login;$("signupTab").classList.toggle("active",mode==="signup");$("loginTab").classList.toggle("active",mode==="login");$("nameWrap").firstChild.textContent=t.name;$("authForm").querySelectorAll(".field")[1].firstChild.textContent=t.email;$("authForm").querySelectorAll(".field")[2].firstChild.textContent=t.password;$("confirmWrap").firstChild.textContent=t.confirm;$("name").placeholder=t.placeholderName;$("authForm").querySelector('input[type=email]').placeholder=t.placeholderEmail;$("authForm").querySelector('input[type=password]').placeholder=t.placeholderPass;$("confirmWrap").querySelector("input").placeholder=t.placeholderConfirm;$("nameWrap").hidden=mode==="login";$("confirmWrap").hidden=mode==="login";$("forgotWrap").hidden=mode!=="login";$("forgot").textContent=t.forgot;$("submitBtn").textContent=mode==="signup"?t.create:t.enter;$("orText").textContent=t.or;$("googleBtn").textContent=t.google;$("notice").textContent=t.notice;$("backLink");document.querySelector(".back").textContent=t.back}
 $("signupTab").onclick=()=>{mode="signup";$("notice").style.display="none";render()};$("loginTab").onclick=()=>{mode="login";$("notice").style.display="none";render()};$("langBtn").onclick=()=>{lang=({en:"fr",fr:"ar",ar:"en"})[lang];localStorage.setItem("colony-links-lang",lang);render()};
-$("authForm").addEventListener("submit",e=>{e.preventDefault();$("notice").style.display="block";$("notice").textContent=copy[lang].notice});
-$("googleBtn").onclick=()=>{$("notice").style.display="block";$("notice").textContent=copy[lang].notice};
+function showNotice(message, isError=false){$("notice").style.display="block";$("notice").style.color=isError?"#ff9b9b":"var(--gold2)";$("notice").textContent=message}
+$("authForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const fields=$("authForm").querySelectorAll("input");
+  const name=$("name").value.trim();
+  const email=fields[1].value.trim();
+  const password=fields[2].value;
+  const confirm=fields[3].value;
+  const t=copy[lang];
+  if(mode==="signup" && password!==confirm){showNotice(lang==="ar"?"كلمتا المرور غير متطابقتين.":lang==="fr"?"Les mots de passe ne correspondent pas.":"Passwords do not match.",true);return}
+  if(mode==="signup" && !name){showNotice(lang==="ar"?"يرجى إدخال الاسم الكامل.":lang==="fr"?"Veuillez saisir votre nom complet.":"Please enter your full name.",true);return}
+  const button=$("submitBtn");
+  button.disabled=true;
+  button.textContent=lang==="ar"?"يرجى الانتظار...":lang==="fr"?"Veuillez patienter...":"Please wait...";
+  try{
+    const endpoint=mode==="signup"?"/api/auth/sign-up/email":"/api/auth/sign-in/email";
+    const payload=mode==="signup"?{name,email,password}:{email,password,rememberMe:true};
+    const response=await fetch(endpoint,{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify(payload)});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok){
+      const message=result.message||result.error?.message|| (lang==="ar"?"تعذر إتمام العملية. تحقق من البيانات وحاول مجدداً.":lang==="fr"?"Impossible de terminer. Vérifiez vos informations et réessayez.":"Unable to complete the request. Check your details and try again.");
+      showNotice(message,true);
+      return;
+    }
+    showNotice(mode==="signup"?(lang==="ar"?"تم إنشاء حسابك بنجاح! أصبحت مسجّل الدخول.":lang==="fr"?"Compte créé avec succès ! Vous êtes connecté.":"Account created successfully! You are now signed in."):(lang==="ar"?"تم تسجيل الدخول بنجاح!":lang==="fr"?"Connexion réussie !":"Logged in successfully!"));
+  }catch(error){
+    showNotice(lang==="ar"?"تعذر الاتصال بالخادم. حاول مرة أخرى.":lang==="fr"?"Impossible de joindre le serveur. Réessayez.":"Could not reach the server. Please try again.",true);
+  }finally{
+    button.disabled=false;
+    button.textContent=mode==="signup"?t.create:t.enter;
+  }
+});
+$("googleBtn").onclick=()=>showNotice(lang==="ar"?"تسجيل Google غير مفعّل بعد.":lang==="fr"?"La connexion Google n'est pas encore activée.":"Google sign-in is not enabled yet.");
 $("forgot").onclick=e=>{e.preventDefault();$("notice").style.display="block";$("notice").textContent=copy[lang].reset};
 $("year").textContent=new Date().getFullYear();render();
 </script></body></html>
