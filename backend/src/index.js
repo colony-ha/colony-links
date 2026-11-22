@@ -338,7 +338,7 @@ async function handleProfileRoutes(request, env, url) {
     return json({ success: true, link }, 201);
   }
 
-  const linkMatch = url.pathname.match(/^\\/api\\/profile\\/links\\/([a-zA-Z0-9-]+)$/);
+  const linkMatch = url.pathname.match(/^\/api\/profile\/links\/([a-zA-Z0-9-]+)$/);
   if (linkMatch && (request.method === "PUT" || request.method === "DELETE")) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
@@ -357,7 +357,7 @@ async function handleProfileRoutes(request, env, url) {
     const icon = String(body.icon || "").trim().slice(0,80);
     const customIcon = String(body.custom_icon || "");
     if (!title || !rawValue) return json({ success: false, message: "A title and destination are required." }, 400);
-    if (customIcon && (!/^data:image\\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(customIcon) || customIcon.length > 180000)) return json({ success: false, message: "Custom icon must be a small PNG, JPG or WebP image." }, 400);
+    if (customIcon && (!/^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(customIcon) || customIcon.length > 180000)) return json({ success: false, message: "Custom icon must be a small PNG, JPG or WebP image." }, 400);
     let destination = "";
     if (type === "email") {
       const email = rawValue.replace(/^mailto:/i, "").trim();
