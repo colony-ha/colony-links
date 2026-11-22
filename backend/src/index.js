@@ -366,7 +366,16 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith("/api/admin/")) {\n      try {\n        const response = await handleAdminRoutes(request, env, url);\n        if (response) return response;\n      } catch (error) {\n        return json({ success: false, message: "Admin service error" }, 500);\n      }\n    }\n\n    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
+    if (url.pathname.startsWith("/api/admin/")) {
+      try {
+        const response = await handleAdminRoutes(request, env, url);
+        if (response) return response;
+      } catch (error) {
+        return json({ success: false, message: "Admin service error" }, 500);
+      }
+    }
+
+    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
       try {
         const response = await handleProfileRoutes(request, env, url);
         if (response) return response;
