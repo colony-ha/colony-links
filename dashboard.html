@@ -43,6 +43,17 @@
 <div class="profile-row"><div class="profile-avatar" id="profileAvatar">C</div><div class="profile-meta"><strong id="profileName">—</strong><span id="profileEmail">—</span></div><span class="status" data-t="signedIn">● Signed in</span></div>
 </section>
 <section class="panel">
+<div class="panel-head"><h2 data-t="publicPageTitle">Your public page</h2><span class="tag" data-t="usernameTag">USERNAME</span></div>
+<form class="profile-form" id="profileForm">
+<label><span data-t="usernameLabel">Choose your username</span><input id="usernameInput" name="username" minlength="3" maxlength="24" pattern="[a-zA-Z0-9_]{3,24}" placeholder="yourname" required autocomplete="off"></label>
+<div class="form-hint" data-t="usernameHint">3–24 characters. Use letters, numbers or underscores. Your public link will be links.colony.dpdns.org/@username.</div>
+<label><span data-t="displayNameLabel">Display name</span><input id="displayNameInput" name="displayName" maxlength="60" placeholder="Your name"></label>
+<label><span data-t="bioLabel">Short bio</span><textarea id="bioInput" name="bio" maxlength="160" placeholder="Tell visitors a little about yourself"></textarea></label>
+<button class="save-btn" id="saveProfileBtn" type="submit" data-t="saveProfile">Save my page</button>
+</form>
+<div class="public-url" id="publicUrl"></div>
+</section>
+<section class="panel">
 <div class="panel-head"><h2 data-t="quickTitle">Your workspace</h2><span class="tag" data-t="comingSoon">COMING SOON</span></div>
 <div class="quick-grid">
 <article class="quick"><div class="quick-icon">↗</div><h3 data-t="pageTitle">Build your page</h3><p data-t="pageText">Create your personal page and bring your important links together.</p></article>
