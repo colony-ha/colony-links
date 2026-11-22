@@ -313,6 +313,11 @@ function createAuth(env) {
             if (status?.is_disabled) {
               throw new APIError("FORBIDDEN", { message: "This account has been disabled. Contact support." });
             }
+            // Every account receives the permanent Free plan the first time it signs in.
+            // Never replace an existing paid, gifted, or expired subscription history.
+            await env.DB.prepare(
+              "INSERT INTO subscriptions (id,user_id,plan,status,source,starts_at,ends_at,reason,granted_by) SELECT ?,?,'free','active','system_default',?, '9999-12-31T23:59:59.999Z','Default free plan','system' WHERE NOT EXISTS (SELECT 1 FROM subscriptions WHERE user_id = ?)"
+            ).bind(crypto.randomUUID(), session.userId, new Date().toISOString(), session.userId).run();
             return { data: session };
           }
         }
@@ -475,6 +480,7 @@ export default {
     if (url.pathname.startsWith("/api/auth/")) {
       try {
         await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_user_status (user_id TEXT PRIMARY KEY NOT NULL, is_disabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
+        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, plan TEXT NOT NULL CHECK(plan IN ('free','pro','business')), status TEXT NOT NULL DEFAULT 'active', source TEXT NOT NULL DEFAULT 'admin_free', starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', granted_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
         const auth = createAuth(env);
         return await auth.handler(request);
       } catch (error) {
