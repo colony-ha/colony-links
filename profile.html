@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#090909"><meta name="description" content="A COLONY LINKS profile page.">
+<title>COLONY LINKS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#090909;--gold:#d6b45b;--gold2:#f0d58b;--text:#f7f4ec;--muted:#aaa394;--line:rgba(214,180,91,.24)}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 8%,rgba(174,129,38,.18),transparent 42%),var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;display:grid;place-items:center;padding:30px 16px}body[lang=ar]{font-family:'Cairo',sans-serif}.card{width:min(430px,100%);text-align:center;padding:34px 27px 27px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(150deg,#1b1913,#0e0e0c 65%);box-shadow:0 25px 90px #000b}.avatar{width:94px;height:94px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#413319,#17130b);border:2px solid var(--gold);color:var(--gold2);font:38px 'Playfair Display',Georgia,serif}.name{font:700 27px 'Playfair Display',Georgia,serif;margin:0}.handle{font-size:13px;color:var(--gold2);margin:6px 0 14px}.bio{font-size:13px;color:var(--muted);line-height:1.7;margin:0 auto 22px;overflow-wrap:anywhere}.links{display:grid;gap:11px}.link{display:block;text-decoration:none;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(110deg,#d9b75f,#f1d994);color:#17130a;font-weight:800;font-size:14px;transition:transform .15s}.link:hover{transform:translateY(-2px)}.empty{font-size:13px;color:var(--muted);padding:17px 0}.brand{display:inline-flex;align-items:center;gap:7px;margin-top:27px;color:#8d8575;text-decoration:none;font-size:10px;letter-spacing:2px;font-weight:800}.brand b{color:var(--gold)}.error{color:var(--muted);padding:35px 0}.loading{color:var(--gold2)}.foot{font-size:10px;color:#6f695d;margin-top:13px}
+</style>
+</head>
+<body>
+<main class="card" id="card"><div class="loading">Loading profile…</div></main>
+<script>
+const card=document.getElementById("card");
+const username=new URLSearchParams(location.search).get("username")||"";
+function safeText(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function load(){
+ if(!/^[a-z0-9_]{3,24}$/i.test(username)){card.innerHTML='<div class="error">Invalid profile address.</div>';return}
+ try{
+  const response=await fetch("/api/public/profile/"+encodeURIComponent(username.toLowerCase()),{cache:"no-store"});
+  const data=await response.json();
+  if(!response.ok||!data.success){card.innerHTML='<div class="error">This COLONY LINKS page does not exist yet.</div><a class="brand" href="/">CREATE YOUR PAGE · <b>COLONY LINKS</b></a>';return}
+  const profile=data.profile;
+  const name=profile.display_name||profile.username;
+  const links=(data.links||[]).map(link=>{
+   let target;
+   try{target=new URL(link.url)}catch{return ""}
+   if(!["http:","https:"].includes(target.protocol))return "";
+   return '<a class="link" href="'+safeText(target.href)+'" target="_blank" rel="noopener noreferrer">'+safeText(link.title)+'</a>';
+  }).join("");
+  document.title=safeText(name)+" · COLONY LINKS";
+  document.documentElement.lang="en";
+  card.innerHTML='<div class="avatar">'+safeText(name.trim().charAt(0).toUpperCase()||"C")+'</div><h1 class="name">'+safeText(name)+'</h1><div class="handle">@'+safeText(profile.username)+'</div><p class="bio">'+safeText(profile.bio||"")+'</p><div class="links">'+(links||'<div class="empty">Links will appear here soon.</div>')+'</div><a class="brand" href="/">CREATE · CONNECT · GROW <b>COLONY LINKS</b></a>';
+ }catch(error){card.innerHTML='<div class="error">Could not load this page. Please try again later.</div>'}
+}
+load();
+</script>
+</body>
+</html>
