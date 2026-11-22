@@ -183,19 +183,20 @@ async function handleProfileRoutes(request, env, url) {
       FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
     )`).run();
     const userId = session.user.id;
+    const todayAlgiers = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Algiers", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const stats = await env.DB.prepare(
       `SELECT
         (SELECT COUNT(*) FROM profile_links WHERE user_id = ?) AS links_created,
         COALESCE((SELECT SUM(clicks) FROM profile_links WHERE user_id = ?), 0) AS link_clicks,
         COALESCE((SELECT page_views FROM profiles WHERE user_id = ?), 0) AS page_views,
-        (SELECT COUNT(DISTINCT visitor_hash) FROM profile_visitors WHERE user_id = ? AND visit_date = date('now')) AS visitors_today,
-        (SELECT COUNT(*) FROM profile_visitors WHERE user_id = ? AND visit_date >= date('now','-29 days')) AS unique_visitors_30d`
-    ).bind(userId,userId,userId,userId,userId).first();
+        (SELECT COUNT(DISTINCT visitor_hash) FROM profile_visitors WHERE user_id = ? AND visit_date = ?) AS visitors_today,
+        (SELECT COUNT(*) FROM profile_visitors WHERE user_id = ? AND visit_date >= date(?, '-29 days')) AS unique_visitors_30d`
+    ).bind(userId,userId,userId,userId,todayAlgiers,userId,todayAlgiers).first();
     const daily = await env.DB.prepare(
       `SELECT visit_date AS date, COUNT(*) AS visitors FROM profile_visitors
-       WHERE user_id = ? AND visit_date >= date('now','-29 days')
+       WHERE user_id = ? AND visit_date >= date(?, '-29 days')
        GROUP BY visit_date ORDER BY visit_date ASC`
-    ).bind(userId).all();
+    ).bind(userId,todayAlgiers).all();
     const topLinks = await env.DB.prepare(
       `SELECT title, clicks FROM profile_links WHERE user_id = ? ORDER BY clicks DESC, created_at ASC LIMIT 5`
     ).bind(userId).all();
@@ -340,7 +341,7 @@ async function handleProfileRoutes(request, env, url) {
     const agent = request.headers.get("User-Agent") || "unknown";
     const visitorHashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(env.BETTER_AUTH_SECRET || "") + "|" + ip + "|" + agent));
     const visitorHash = Array.from(new Uint8Array(visitorHashBuffer), byte => byte.toString(16).padStart(2,"0")).join("");
-    const visitDate = new Date().toISOString().slice(0,10);
+    const visitDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const inserted = await env.DB.prepare(
       "INSERT OR IGNORE INTO profile_visitors (user_id, visitor_hash, visit_date) VALUES (?,?,?)"
     ).bind(owner.user_id, visitorHash, visitDate).run();
