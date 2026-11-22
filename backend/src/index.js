@@ -202,7 +202,7 @@ async function handleProfileRoutes(request, env, url) {
     return json({ success: true, social: { id, platform, url: parsedUrl.href, sort_order: order?.next_order ?? 0 } }, 201);
   }
 
-  const socialMatch = url.pathname.match(/^\\/api\\/profile\\/socials\\/([a-zA-Z0-9-]+)$/);
+  const socialMatch = url.pathname.match(/^\/api\/profile\/socials\/([a-zA-Z0-9-]+)$/);
   if (socialMatch && (request.method === "PUT" || request.method === "DELETE")) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
