@@ -73,7 +73,12 @@
     .visual .mock-link:hover{filter:brightness(1.15)}
     @media(prefers-reduced-motion:reduce){.visual .profile,.visual .mock-link{animation:none!important;will-change:auto}}
     </style>
-  <link rel="manifest" href="/manifest.webmanifest">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n  <link rel="apple-touch-icon" href="/Luxury%20Colony%20Links%20Hub.png">\n</head>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/Luxury%20Colony%20Links%20Hub.png">
+</head>
 <body lang="en" dir="ltr">
   <header class="wrap nav">
     <a class="brand" href="#" aria-label="COLONY LINKS home"><img class="brand-logo" src="Luxury%20Colony%20Links%20Hub.png" alt="COLONY LINKS logo"><span>COLONY <span>LINKS</span></span></a>
@@ -124,5 +129,6 @@
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
-</script>\n</body>
+</script>
+</body>
 </html>
