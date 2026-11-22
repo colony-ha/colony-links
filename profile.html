@@ -22,8 +22,8 @@
 const card=document.getElementById("card");
 const username=new URLSearchParams(location.search).get("username")||"";
 function safeText(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-const socialIcons={instagram:"fa-brands fa-instagram",facebook:"fa-brands fa-facebook-f",tiktok:"fa-brands fa-tiktok",whatsapp:"fa-brands fa-whatsapp",youtube:"fa-brands fa-youtube",telegram:"fa-brands fa-telegram",x:"fa-brands fa-x-twitter",linkedin:"fa-brands fa-linkedin-in",snapchat:"fa-brands fa-snapchat",website:"fa-solid fa-globe"};
-const socialLabels={instagram:"Instagram",facebook:"Facebook",tiktok:"TikTok",whatsapp:"WhatsApp",youtube:"YouTube",telegram:"Telegram",x:"X",linkedin:"LinkedIn",snapchat:"Snapchat",website:"Website"};
+const socialIcons={instagram:"fa-brands fa-instagram",facebook:"fa-brands fa-facebook-f",tiktok:"fa-brands fa-tiktok",whatsapp:"fa-brands fa-whatsapp",youtube:"fa-brands fa-youtube",telegram:"fa-brands fa-telegram",x:"fa-brands fa-x-twitter",linkedin:"fa-brands fa-linkedin-in",snapchat:"fa-brands fa-snapchat",pinterest:"fa-brands fa-pinterest-p",google_maps:"fa-solid fa-map-location-dot",spotify:"fa-brands fa-spotify",discord:"fa-brands fa-discord",twitch:"fa-brands fa-twitch",reddit:"fa-brands fa-reddit-alien",github:"fa-brands fa-github",threads:"fa-brands fa-threads",medium:"fa-brands fa-medium",behance:"fa-brands fa-behance",dribbble:"fa-brands fa-dribbble",soundcloud:"fa-brands fa-soundcloud",website:"fa-solid fa-globe"};
+const socialLabels={instagram:"Instagram",facebook:"Facebook",tiktok:"TikTok",whatsapp:"WhatsApp",youtube:"YouTube",telegram:"Telegram",x:"X",linkedin:"LinkedIn",snapchat:"Snapchat",pinterest:"Pinterest",google_maps:"Google Maps",spotify:"Spotify",discord:"Discord",twitch:"Twitch",reddit:"Reddit",github:"GitHub",threads:"Threads",medium:"Medium",behance:"Behance",dribbble:"Dribbble",soundcloud:"SoundCloud",website:"Website"};
 async function load(){
  if(!/^[a-z0-9_]{3,24}$/i.test(username)){card.innerHTML='<div class="error">Invalid profile address.</div>';return}
  try{
