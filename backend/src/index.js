@@ -41,7 +41,7 @@ async function handleAdminRoutes(request, env, url) {
     if (!target) return json({ success: false, message: "Account not found." }, 404);
     const starts = new Date(); const ends = new Date(starts); ends.setMonth(ends.getMonth() + months);
     const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO subscriptions (id,user_id,plan,status,source,starts_at,ends_at,reason,granted_by) VALUES (?,?,?,'active','admin_free',?,?,?,?,?)".replace("?,?,?,?,?)","?,?,?,?)")).bind(id,target.id,plan,starts.toISOString(),ends.toISOString(),reason,session.user.id).run();
+    await env.DB.prepare("INSERT INTO subscriptions (id,user_id,plan,status,source,starts_at,ends_at,reason,granted_by) VALUES (?,?,?,'active','admin_free',?,?,?,?)").bind(id,target.id,plan,starts.toISOString(),ends.toISOString(),reason,session.user.id).run();
     return json({ success: true, subscription: { id, email, plan, starts_at: starts.toISOString(), ends_at: ends.toISOString(), source: "admin_free" } });
   }
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
