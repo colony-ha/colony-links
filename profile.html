@@ -15,7 +15,7 @@
 .template-glass .card{background:linear-gradient(145deg,#ffffff1c,#ffffff08);backdrop-filter:blur(18px);border-color:#ffffff55;box-shadow:0 25px 90px #0008}.template-glass .link{background:#ffffff16;color:#f7f4ec;border-color:#ffffff66;backdrop-filter:blur(10px)}.template-glass .avatar{background:#ffffff18;border-color:#ffffff88}
 .template-signature .card{width:min(500px,100%);padding:48px 34px 36px;border:2px solid #d6b45b;border-radius:4px;background:linear-gradient(145deg,#201a0e,#090909 70%);box-shadow:0 25px 100px #000b}.template-signature .name{font-size:34px;letter-spacing:.3px}.template-signature .avatar{width:112px;height:112px;border-radius:26px}.template-signature .link{border-radius:4px;letter-spacing:.4px;background:transparent;color:#f0d58b}.template-signature .brand{color:#d6b45b}
 </style>
-</head>
+  <link rel="manifest" href="/manifest.webmanifest">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n  <link rel="apple-touch-icon" href="/Luxury%20Colony%20Links%20Hub.png">\n</head>
 <body>
 <main class="card" id="card"><div class="loading">Loading profile…</div></main>
 <script>
@@ -60,5 +60,9 @@ async function load(){
 }
 load();
 </script>
-</body>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+</script>\n</body>
 </html>
