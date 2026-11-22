@@ -38,6 +38,15 @@ async function getEffectiveAccess(env, user) {
 }
 
 async function handleAdminRoutes(request, env, url) {
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_socials (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    url TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+  )`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_user_status (user_id TEXT PRIMARY KEY NOT NULL, is_disabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
   const auth = createAuth(env);
   const session = await getCurrentSession(auth, request);
