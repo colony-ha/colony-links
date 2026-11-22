@@ -280,9 +280,8 @@ async function handleProfileRoutes(request, env, url) {
     const accentColor = /^#[0-9a-fA-F]{6}$/.test(body.accentColor || "") ? body.accentColor : "#d6b45b";
     const backgroundStyle = ["glow", "plain", "gradient"].includes(body.backgroundStyle) ? body.backgroundStyle : "glow";
     const templateKey = ["classic","minimal","aurora","glass","signature"].includes(body.templateKey) ? body.templateKey : "classic";
-    const access = await getEffectiveAccess(env, session.user);
     if (!canUseProfileTemplate(templateKey)) {
-      return json({ success: false, message: "This design is available on a higher plan. Upgrade your plan to use it." }, 403);
+      return json({ success: false, message: "Invalid profile template." }, 400);
     }
     try {
       await env.DB.prepare(
@@ -320,8 +319,6 @@ async function handleProfileRoutes(request, env, url) {
     ).bind(username).first();
     if (!profile) return json({ success: false, message: "Profile not found" }, 404);
     const { user_id: ownerId, ...publicProfile } = profile;
-    const owner = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(ownerId).first();
-    const ownerAccess = await getEffectiveAccess(env, owner || {});
     if (!canUseProfileTemplate(profile.template_key || "classic")) profile.template_key = "classic";
     await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_visitors (
       user_id TEXT NOT NULL,
