@@ -329,7 +329,7 @@ async function handleProfileRoutes(request, env, url) {
       ).bind(session.user.id, username, displayName, bio, backgroundColor, accentColor, backgroundStyle, templateKey).run();
 
       const profile = await env.DB.prepare(
-        "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, created_at, updated_at FROM profiles WHERE user_id = ?"
+        "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, template_key, created_at, updated_at FROM profiles WHERE user_id = ?"
       ).bind(session.user.id).first();
       return json({ success: true, profile: { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" } });
     } catch (error) {
@@ -348,7 +348,8 @@ async function handleProfileRoutes(request, env, url) {
       "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, template_key, user_id FROM profiles WHERE username = ?"
     ).bind(username).first();
     if (!profile) return json({ success: false, message: "Profile not found" }, 404);
-    const owner = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(profile.user_id).first();
+    const { user_id: ownerId, ...publicProfile } = profile;
+    const owner = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(ownerId).first();
     const ownerAccess = await getEffectiveAccess(env, owner || {});
     if (!canUseProfileTemplate(profile.template_key || "classic", ownerAccess.plan)) profile.template_key = "classic";
     await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_visitors (
@@ -359,7 +360,6 @@ async function handleProfileRoutes(request, env, url) {
       PRIMARY KEY (user_id, visitor_hash, visit_date),
       FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
     )`).run();
-    const ownerForVisit = { user_id: profile.user_id };
     const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
     const agent = request.headers.get("User-Agent") || "unknown";
     const visitorHashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(env.BETTER_AUTH_SECRET || "") + "|" + ip + "|" + agent));
@@ -367,14 +367,14 @@ async function handleProfileRoutes(request, env, url) {
     const visitDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const inserted = await env.DB.prepare(
       "INSERT OR IGNORE INTO profile_visitors (user_id, visitor_hash, visit_date) VALUES (?,?,?)"
-    ).bind(ownerForVisit.user_id, visitorHash, visitDate).run();
+    ).bind(ownerId, visitorHash, visitDate).run();
     if (Number(inserted.meta?.changes || 0) > 0) {
-      await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE user_id = ?").bind(ownerForVisit.user_id).run();
+      await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE user_id = ?").bind(ownerId).run();
     }
     const links = await env.DB.prepare(
       "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     ).bind(username).all();
-    return json({ success: true, profile: { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" }, links: links.results || [] });
+    return json({ success: true, profile: { ...publicProfile, avatarUrl: publicProfile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(publicProfile.avatar_key) : "" }, links: links.results || [] });
   }
 
   return null;
