@@ -12,6 +12,19 @@ async function getCurrentSession(auth, request) {
   return auth.api.getSession({ headers: request.headers });
 }
 
+const PROFILE_TEMPLATE_LEVELS = { classic: 0, minimal: 0, aurora: 1, glass: 1, signature: 2 };
+function canUseProfileTemplate(template, plan) {
+  const levels = { free: 0, pro: 1, business: 2 };
+  return Object.prototype.hasOwnProperty.call(PROFILE_TEMPLATE_LEVELS, template) &&
+    PROFILE_TEMPLATE_LEVELS[template] <= (levels[plan] ?? 0);
+}
+async function ensureProfileTemplateColumn(env) {
+  const columns = await env.DB.prepare("PRAGMA table_info(profiles)").all();
+  if (!(columns.results || []).some(column => column.name === "template_key")) {
+    await env.DB.prepare("ALTER TABLE profiles ADD COLUMN template_key TEXT NOT NULL DEFAULT 'classic'").run();
+  }
+}
+
 function isAdminUser(user) {
   return ADMIN_EMAILS.has(String(user?.email || "").trim().toLowerCase());
 }
@@ -135,6 +148,7 @@ async function handleAdminRoutes(request, env, url) {
 
 async function handleProfileRoutes(request, env, url) {
   const auth = createAuth(env);
+  if (url.pathname === "/api/profile/me" || url.pathname.startsWith("/api/public/profile/")) await ensureProfileTemplateColumn(env);
 
   if (url.pathname === "/api/profile/avatar" && request.method === "POST") {
     const session = await getCurrentSession(createAuth(env), request);
@@ -269,7 +283,7 @@ async function handleProfileRoutes(request, env, url) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     const profile = await env.DB.prepare(
-      "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, created_at, updated_at FROM profiles WHERE user_id = ?"
+      "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, template_key, created_at, updated_at FROM profiles WHERE user_id = ?"
     ).bind(session.user.id).first();
     return json({ success: true, profile: profile ? { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" } : null });
   }
@@ -294,10 +308,15 @@ async function handleProfileRoutes(request, env, url) {
     const backgroundColor = /^#[0-9a-fA-F]{6}$/.test(body.backgroundColor || "") ? body.backgroundColor : "#090909";
     const accentColor = /^#[0-9a-fA-F]{6}$/.test(body.accentColor || "") ? body.accentColor : "#d6b45b";
     const backgroundStyle = ["glow", "plain", "gradient"].includes(body.backgroundStyle) ? body.backgroundStyle : "glow";
+    const templateKey = ["classic","minimal","aurora","glass","signature"].includes(body.templateKey) ? body.templateKey : "classic";
+    const access = await getEffectiveAccess(env, session.user);
+    if (!canUseProfileTemplate(templateKey, access.plan)) {
+      return json({ success: false, message: "This design is available on a higher plan. Upgrade your plan to use it." }, 403);
+    }
     try {
       await env.DB.prepare(
-        `INSERT INTO profiles (user_id, username, display_name, bio, background_color, accent_color, background_style, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `INSERT INTO profiles (user_id, username, display_name, bio, background_color, accent_color, background_style, template_key, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          ON CONFLICT(user_id) DO UPDATE SET
            username = excluded.username,
            display_name = excluded.display_name,
@@ -305,8 +324,9 @@ async function handleProfileRoutes(request, env, url) {
            background_color = excluded.background_color,
            accent_color = excluded.accent_color,
            background_style = excluded.background_style,
+           template_key = excluded.template_key,
            updated_at = CURRENT_TIMESTAMP`
-      ).bind(session.user.id, username, displayName, bio, backgroundColor, accentColor, backgroundStyle).run();
+      ).bind(session.user.id, username, displayName, bio, backgroundColor, accentColor, backgroundStyle, templateKey).run();
 
       const profile = await env.DB.prepare(
         "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, created_at, updated_at FROM profiles WHERE user_id = ?"
@@ -325,9 +345,12 @@ async function handleProfileRoutes(request, env, url) {
   if (publicMatch && request.method === "GET") {
     const username = publicMatch[1].toLowerCase();
     const profile = await env.DB.prepare(
-      "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style FROM profiles WHERE username = ?"
+      "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, template_key, user_id FROM profiles WHERE username = ?"
     ).bind(username).first();
     if (!profile) return json({ success: false, message: "Profile not found" }, 404);
+    const owner = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(profile.user_id).first();
+    const ownerAccess = await getEffectiveAccess(env, owner || {});
+    if (!canUseProfileTemplate(profile.template_key || "classic", ownerAccess.plan)) profile.template_key = "classic";
     await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_visitors (
       user_id TEXT NOT NULL,
       visitor_hash TEXT NOT NULL,
@@ -336,7 +359,7 @@ async function handleProfileRoutes(request, env, url) {
       PRIMARY KEY (user_id, visitor_hash, visit_date),
       FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
     )`).run();
-    const owner = await env.DB.prepare("SELECT user_id FROM profiles WHERE username = ?").bind(username).first();
+    const ownerForVisit = { user_id: profile.user_id };
     const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
     const agent = request.headers.get("User-Agent") || "unknown";
     const visitorHashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(env.BETTER_AUTH_SECRET || "") + "|" + ip + "|" + agent));
@@ -344,9 +367,9 @@ async function handleProfileRoutes(request, env, url) {
     const visitDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Algiers', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const inserted = await env.DB.prepare(
       "INSERT OR IGNORE INTO profile_visitors (user_id, visitor_hash, visit_date) VALUES (?,?,?)"
-    ).bind(owner.user_id, visitorHash, visitDate).run();
+    ).bind(ownerForVisit.user_id, visitorHash, visitDate).run();
     if (Number(inserted.meta?.changes || 0) > 0) {
-      await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE user_id = ?").bind(owner.user_id).run();
+      await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE user_id = ?").bind(ownerForVisit.user_id).run();
     }
     const links = await env.DB.prepare(
       "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
