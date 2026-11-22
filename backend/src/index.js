@@ -174,13 +174,32 @@ async function handleProfileRoutes(request, env, url) {
   if (url.pathname === "/api/profile/stats" && request.method === "GET") {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_visitors (
+      user_id TEXT NOT NULL,
+      visitor_hash TEXT NOT NULL,
+      visit_date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, visitor_hash, visit_date),
+      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+    )`).run();
+    const userId = session.user.id;
     const stats = await env.DB.prepare(
       `SELECT
         (SELECT COUNT(*) FROM profile_links WHERE user_id = ?) AS links_created,
         COALESCE((SELECT SUM(clicks) FROM profile_links WHERE user_id = ?), 0) AS link_clicks,
-        COALESCE((SELECT page_views FROM profiles WHERE user_id = ?), 0) AS page_views`
-    ).bind(session.user.id, session.user.id, session.user.id).first();
-    return json({ success: true, stats: stats || { links_created: 0, link_clicks: 0, page_views: 0 } });
+        COALESCE((SELECT page_views FROM profiles WHERE user_id = ?), 0) AS page_views,
+        (SELECT COUNT(DISTINCT visitor_hash) FROM profile_visitors WHERE user_id = ? AND visit_date = date('now')) AS visitors_today,
+        (SELECT COUNT(*) FROM profile_visitors WHERE user_id = ? AND visit_date >= date('now','-29 days')) AS unique_visitors_30d`
+    ).bind(userId,userId,userId,userId,userId).first();
+    const daily = await env.DB.prepare(
+      `SELECT visit_date AS date, COUNT(*) AS visitors FROM profile_visitors
+       WHERE user_id = ? AND visit_date >= date('now','-29 days')
+       GROUP BY visit_date ORDER BY visit_date ASC`
+    ).bind(userId).all();
+    const topLinks = await env.DB.prepare(
+      `SELECT title, clicks FROM profile_links WHERE user_id = ? ORDER BY clicks DESC, created_at ASC LIMIT 5`
+    ).bind(userId).all();
+    return json({ success: true, stats: stats || {}, daily: daily.results || [], top_links: topLinks.results || [] });
   }
 
   if (url.pathname.startsWith("/api/public/click/") && request.method === "GET") {
@@ -308,7 +327,26 @@ async function handleProfileRoutes(request, env, url) {
       "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style FROM profiles WHERE username = ?"
     ).bind(username).first();
     if (!profile) return json({ success: false, message: "Profile not found" }, 404);
-    await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE username = ?").bind(username).run();
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_visitors (
+      user_id TEXT NOT NULL,
+      visitor_hash TEXT NOT NULL,
+      visit_date TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, visitor_hash, visit_date),
+      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+    )`).run();
+    const owner = await env.DB.prepare("SELECT user_id FROM profiles WHERE username = ?").bind(username).first();
+    const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
+    const agent = request.headers.get("User-Agent") || "unknown";
+    const visitorHashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(env.BETTER_AUTH_SECRET || "") + "|" + ip + "|" + agent));
+    const visitorHash = Array.from(new Uint8Array(visitorHashBuffer), byte => byte.toString(16).padStart(2,"0")).join("");
+    const visitDate = new Date().toISOString().slice(0,10);
+    const inserted = await env.DB.prepare(
+      "INSERT OR IGNORE INTO profile_visitors (user_id, visitor_hash, visit_date) VALUES (?,?,?)"
+    ).bind(owner.user_id, visitorHash, visitDate).run();
+    if (Number(inserted.meta?.changes || 0) > 0) {
+      await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE user_id = ?").bind(owner.user_id).run();
+    }
     const links = await env.DB.prepare(
       "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     ).bind(username).all();
