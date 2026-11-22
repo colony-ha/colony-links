@@ -61,26 +61,18 @@
     .brand-logo{width:54px;height:54px;object-fit:contain;display:block;border-radius:50%;filter:drop-shadow(0 0 12px rgba(214,180,91,.22));transition:transform .25s ease,filter .25s ease}.brand:hover .brand-logo{transform:scale(1.06);filter:drop-shadow(0 0 16px rgba(214,180,91,.42))}
     @media(max-width:520px){.brand-logo{width:44px;height:44px}.brand{gap:8px;letter-spacing:1.3px}}
 
-    /* Always-moving live profile preview */
-    .visual .profile{animation:previewFloat 6s ease-in-out infinite;transform-origin:50% 50%;will-change:transform,filter}
-    @keyframes previewFloat{0%,100%{transform:translate3d(0,0,0) rotate(2deg)}25%{transform:translate3d(0,-9px,0) rotate(1deg)}50%{transform:translate3d(0,-15px,0) rotate(-1deg)}75%{transform:translate3d(0,-7px,0) rotate(1.2deg)}}
-    .visual .avatar{animation:avatarGlow 3.8s ease-in-out infinite;position:relative}
-    @keyframes avatarGlow{0%,100%{box-shadow:0 0 0 rgba(214,180,91,0)}50%{box-shadow:0 0 24px rgba(214,180,91,.38),0 0 38px rgba(22,217,138,.12)}}
-    .visual .mock-link{position:relative;overflow:hidden;isolation:isolate;animation:linkBreath 4.8s ease-in-out infinite}
+    /* Smooth lightweight preview motion */
+    .visual .profile{animation:previewFloat 5s ease-in-out infinite;transform:rotate(2deg);will-change:transform}
+    @keyframes previewFloat{0%,100%{transform:translateY(0) rotate(2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+    .visual .mock-link{animation:buttonPulse 6s ease-in-out infinite;transition:filter .2s ease}
     .visual .mock-link:nth-of-type(1){animation-delay:0s}
-    .visual .mock-link:nth-of-type(2){animation-delay:.45s}
-    .visual .mock-link:nth-of-type(3){animation-delay:.9s}
-    .visual .mock-link:nth-of-type(4){animation-delay:1.35s}
-    .visual .mock-link:after{content:"";position:absolute;z-index:-1;inset:-40% auto -40% -65%;width:42%;transform:skewX(-22deg);background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);animation:linkShine 5.5s ease-in-out infinite}
-    @keyframes linkBreath{0%,78%,100%{filter:brightness(1);box-shadow:0 5px 16px #0005}88%{filter:brightness(1.16);box-shadow:0 0 22px rgba(214,180,91,.24),0 5px 16px #0005}}
-    @keyframes linkShine{0%,48%{left:-65%;opacity:0}58%{opacity:1}78%,100%{left:135%;opacity:0}}
-    .visual .float-tag{animation:tagFloat 5s ease-in-out infinite}
-    .visual .tag-two{animation-delay:-2.5s}
-    @keyframes tagFloat{0%,100%{translate:0 0}50%{translate:0 -9px}}
-    .visual .glow{animation:previewGlow 8s ease-in-out infinite alternate}
-    @keyframes previewGlow{from{opacity:.55;scale:.88}to{opacity:1;scale:1.12}}
-    @media(prefers-reduced-motion:reduce){.visual .profile,.visual .avatar,.visual .mock-link,.visual .mock-link:after,.visual .float-tag,.visual .glow{animation:none!important;will-change:auto}}
-</style>
+    .visual .mock-link:nth-of-type(2){animation-delay:.35s}
+    .visual .mock-link:nth-of-type(3){animation-delay:.7s}
+    .visual .mock-link:nth-of-type(4){animation-delay:1.05s}
+    @keyframes buttonPulse{0%,82%,100%{filter:brightness(1)}90%{filter:brightness(1.12)}}
+    .visual .mock-link:hover{filter:brightness(1.15)}
+    @media(prefers-reduced-motion:reduce){.visual .profile,.visual .mock-link{animation:none!important;will-change:auto}}
+    </style>
 </head>
 <body lang="en" dir="ltr">
   <header class="wrap nav">
