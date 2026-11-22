@@ -12,6 +12,59 @@ async function getCurrentSession(auth, request) {
 async function handleProfileRoutes(request, env, url) {
   const auth = createAuth(env);
 
+  if (url.pathname === "/api/profile/links" && request.method === "GET") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const result = await env.DB.prepare(
+      "SELECT id, title, url, sort_order, is_active, created_at FROM profile_links WHERE user_id = ? ORDER BY sort_order ASC, created_at ASC"
+    ).bind(session.user.id).all();
+    return json({ success: true, links: result.results || [] });
+  }
+
+  if (url.pathname === "/api/profile/links" && request.method === "POST") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const title = String(body.title || "").trim().slice(0, 60);
+    const rawUrl = String(body.url || "").trim().slice(0, 2048);
+    let parsedUrl;
+    try { parsedUrl = new URL(rawUrl); } catch { return json({ success: false, message: "Enter a valid URL beginning with https:// or http://." }, 400); }
+    if (!title) return json({ success: false, message: "Link title is required." }, 400);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
+    const id = crypto.randomUUID();
+    const order = await env.DB.prepare("SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM profile_links WHERE user_id = ?").bind(session.user.id).first();
+    await env.DB.prepare(
+      "INSERT INTO profile_links (id, user_id, title, url, sort_order, is_active) VALUES (?, ?, ?, ?, ?, 1)"
+    ).bind(id, session.user.id, title, parsedUrl.href, order?.next_order ?? 0).run();
+    const link = await env.DB.prepare("SELECT id, title, url, sort_order, is_active FROM profile_links WHERE id = ? AND user_id = ?").bind(id, session.user.id).first();
+    return json({ success: true, link }, 201);
+  }
+
+  const linkMatch = url.pathname.match(/^\\/api\\/profile\\/links\\/([a-zA-Z0-9-]+)$/);
+  if (linkMatch && (request.method === "PUT" || request.method === "DELETE")) {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const id = linkMatch[1];
+    if (request.method === "DELETE") {
+      const result = await env.DB.prepare("DELETE FROM profile_links WHERE id = ? AND user_id = ?").bind(id, session.user.id).run();
+      if (!result.meta?.changes) return json({ success: false, message: "Link not found." }, 404);
+      return json({ success: true });
+    }
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const title = String(body.title || "").trim().slice(0, 60);
+    const rawUrl = String(body.url || "").trim().slice(0, 2048);
+    let parsedUrl;
+    try { parsedUrl = new URL(rawUrl); } catch { return json({ success: false, message: "Enter a valid URL beginning with https:// or http://." }, 400); }
+    if (!title) return json({ success: false, message: "Link title is required." }, 400);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) return json({ success: false, message: "Only HTTP and HTTPS links are allowed." }, 400);
+    const result = await env.DB.prepare("UPDATE profile_links SET title = ?, url = ? WHERE id = ? AND user_id = ?").bind(title, parsedUrl.href, id, session.user.id).run();
+    if (!result.meta?.changes) return json({ success: false, message: "Link not found." }, 404);
+    const link = await env.DB.prepare("SELECT id, title, url, sort_order, is_active FROM profile_links WHERE id = ? AND user_id = ?").bind(id, session.user.id).first();
+    return json({ success: true, link });
+  }
+
   if (url.pathname === "/api/profile/me" && request.method === "GET") {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
@@ -80,7 +133,7 @@ async function handleProfileRoutes(request, env, url) {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://links.colony.dpdns.org",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Credentials": "true",
 };
