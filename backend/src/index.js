@@ -190,7 +190,7 @@ async function handleProfileRoutes(request, env, url) {
         COALESCE((SELECT SUM(clicks) FROM profile_links WHERE user_id = ?), 0) AS link_clicks,
         COALESCE((SELECT page_views FROM profiles WHERE user_id = ?), 0) AS page_views,
         (SELECT COUNT(DISTINCT visitor_hash) FROM profile_visitors WHERE user_id = ? AND visit_date = ?) AS visitors_today,
-        (SELECT COUNT(*) FROM profile_visitors WHERE user_id = ? AND visit_date >= date(?, '-29 days')) AS unique_visitors_30d`
+        (SELECT COUNT(DISTINCT visitor_hash) FROM profile_visitors WHERE user_id = ? AND visit_date >= date(?, '-29 days')) AS unique_visitors_30d`
     ).bind(userId,userId,userId,userId,todayAlgiers,userId,todayAlgiers).first();
     const daily = await env.DB.prepare(
       `SELECT visit_date AS date, COUNT(*) AS visitors FROM profile_visitors
