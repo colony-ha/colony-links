@@ -187,7 +187,7 @@ async function handleProfileRoutes(request, env, url) {
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     let body;
     try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
-    const platforms = new Set(["instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","website"]);
+    const platforms = new Set(["instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","pinterest","google_maps","spotify","discord","twitch","reddit","github","threads","medium","behance","dribbble","soundcloud","website"]);
     const platform = String(body.platform || "").trim().toLowerCase();
     const rawUrl = String(body.url || "").trim().slice(0, 2048);
     let parsedUrl;
@@ -214,7 +214,7 @@ async function handleProfileRoutes(request, env, url) {
     }
     let body;
     try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
-    const platforms = new Set(["instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","website"]);
+    const platforms = new Set(["instagram","facebook","tiktok","whatsapp","youtube","telegram","x","linkedin","snapchat","pinterest","google_maps","spotify","discord","twitch","reddit","github","threads","medium","behance","dribbble","soundcloud","website"]);
     const platform = String(body.platform || "").trim().toLowerCase();
     const rawUrl = String(body.url || "").trim().slice(0, 2048);
     let parsedUrl;
