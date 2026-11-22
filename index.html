@@ -57,11 +57,14 @@
     @media(max-width:800px){.hero-art{min-height:500px}.hub-art{width:min(100%,510px)}.chip-one{right:1%}.chip-two{left:1%}}
     @media(max-width:520px){.hero-art{min-height:420px}.hub-art{width:100%;border-radius:18px}.art-chip{font-size:9px;padding:8px 10px}.chip-one{top:8%}.chip-two{bottom:7%}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+    .brand-logo{width:54px;height:54px;object-fit:contain;display:block;border-radius:50%;filter:drop-shadow(0 0 12px rgba(214,180,91,.22));transition:transform .25s ease,filter .25s ease}.brand:hover .brand-logo{transform:scale(1.06);filter:drop-shadow(0 0 16px rgba(214,180,91,.42))}
+    @media(max-width:520px){.brand-logo{width:44px;height:44px}.brand{gap:8px;letter-spacing:1.3px}}
 </style>
 </head>
 <body lang="en" dir="ltr">
   <header class="wrap nav">
-    <a class="brand" href="#" aria-label="COLONY LINKS home"><span class="brand-mark">C</span><span>COLONY <span>LINKS</span></span></a>
+    <a class="brand" href="#" aria-label="COLONY LINKS home"><img class="brand-logo" src="Luxury%20Colony%20Links%20Hub.png" alt="COLONY LINKS logo"><span>COLONY <span>LINKS</span></span></a>
     <div class="nav-right">
       <a class="nav-link" href="#features" data-i18n="navFeatures">Features</a>
       <select class="lang" id="langBtn" aria-label="Change language"><option value="en">English</option><option value="fr">Français</option><option value="ar">العربية</option></select>
@@ -77,10 +80,10 @@
         <div class="actions"><a class="primary" href="signup.html" data-i18n="create">Create your page <span aria-hidden="true">↗</span></a><a class="secondary" href="#features" data-i18n="explore">Explore features</a></div>
         <div class="micro" data-i18n="micro">Simple to create · Easy to share · Made to grow</div>
       </div>
-      <div class="visual hero-art" aria-label="COLONY LINKS luxury profile preview">
-        <div class="art-orbit orbit-gold"></div><div class="art-orbit orbit-green"></div><div class="art-orbit orbit-blue"></div>
-        <div class="art-glow"></div><img class="hub-art" src="Luxury%20Colony%20Links%20Hub.png" alt="COLONY LINKS — Create, Share, Grow luxury link hub preview" fetchpriority="high">
-        <span class="art-chip chip-one" data-i18n="tagOne">✦ Your brand, your style</span><span class="art-chip chip-two" data-i18n="tagTwo">↗ One link. Endless possibilities.</span>
+      <div class="visual" aria-label="Example profile page preview">
+        <div class="glow"></div><div class="float-tag tag-one" data-i18n="tagOne">✦ Your brand, your style</div>
+        <div class="profile"><div class="avatar">C</div><h3>COLONY STUDIO</h3><div class="handle">@colonystudio</div><div class="bio" data-i18n="sampleBio">Creative ideas, useful links and more.</div><a class="mock-link" href="#start" data-i18n="sample1">✦ Discover my website</a><a class="mock-link dark" href="#start" data-i18n="sample2">▶ Watch my latest video</a><a class="mock-link dark" href="#start" data-i18n="sample3">◎ Follow me on Instagram</a><a class="mock-link dark" href="#start" data-i18n="sample4">✉ Get in touch</a><div class="socials">INSTAGRAM　 TIKTOK　 YOUTUBE</div></div>
+        <div class="float-tag tag-two" data-i18n="tagTwo">↗ One link. Endless possibilities.</div>
       </div>
     </section>
     <div class="trust" data-i18n="trust">ALL YOUR IMPORTANT LINKS · ONE BEAUTIFUL PLACE</div>
