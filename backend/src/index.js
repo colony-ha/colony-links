@@ -12,6 +12,27 @@ async function getCurrentSession(auth, request) {
   return auth.api.getSession({ headers: request.headers });
 }
 
+function isAdminUser(user) {
+  return ADMIN_EMAILS.has(String(user?.email || "").trim().toLowerCase());
+}
+
+async function getEffectiveAccess(env, user) {
+  // Administrators bypass all subscription checks and feature limits.
+  if (isAdminUser(user)) {
+    return { plan: "business", unlimited: true, isAdmin: true };
+  }
+
+  const subscription = await env.DB.prepare(
+    "SELECT plan FROM subscriptions WHERE user_id = ? AND status = 'active' AND julianday(ends_at) > julianday('now') ORDER BY julianday(ends_at) DESC, created_at DESC LIMIT 1"
+  ).bind(user.id).first();
+
+  return {
+    plan: subscription?.plan || "free",
+    unlimited: false,
+    isAdmin: false
+  };
+}
+
 async function handleAdminRoutes(request, env, url) {
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_user_status (user_id TEXT PRIMARY KEY NOT NULL, is_disabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
   const auth = createAuth(env);
@@ -141,6 +162,13 @@ async function handleProfileRoutes(request, env, url) {
     headers.set("Cache-Control", "public, max-age=86400");
     headers.set("X-Content-Type-Options", "nosniff");
     return new Response(object.body, { headers });
+  }
+
+  if (url.pathname === "/api/profile/access" && request.method === "GET") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const access = await getEffectiveAccess(env, session.user);
+    return json({ success: true, access });
   }
 
   if (url.pathname === "/api/profile/stats" && request.method === "GET") {
