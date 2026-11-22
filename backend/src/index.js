@@ -1,6 +1,83 @@
 import { betterAuth } from "better-auth";
 import { getMigrations } from "better-auth/db/migration";
 
+
+
+const RESERVED_USERNAMES = new Set(["admin","administrator","api","www","signup","login","logout","dashboard","profile","settings","support","help","about","terms","privacy","pricing","billing","assets","static","auth","null","undefined"]);
+
+async function getCurrentSession(auth, request) {
+  return auth.api.getSession({ headers: request.headers });
+}
+
+async function handleProfileRoutes(request, env, url) {
+  const auth = createAuth(env);
+
+  if (url.pathname === "/api/profile/me" && request.method === "GET") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const profile = await env.DB.prepare(
+      "SELECT username, display_name, bio, created_at, updated_at FROM profiles WHERE user_id = ?"
+    ).bind(session.user.id).first();
+    return json({ success: true, profile: profile || null });
+  }
+
+  if (url.pathname === "/api/profile/me" && request.method === "POST") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+
+    const username = String(body.username || "").trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_]{2,23}$/.test(username)) {
+      return json({ success: false, message: "Username must be 3–24 characters and use lowercase letters, numbers or underscores." }, 400);
+    }
+    if (RESERVED_USERNAMES.has(username)) {
+      return json({ success: false, message: "This username is reserved. Please choose another one." }, 409);
+    }
+
+    const displayName = String(body.displayName || session.user.name || "").trim().slice(0, 60);
+    const bio = String(body.bio || "").trim().slice(0, 160);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO profiles (user_id, username, display_name, bio, created_at, updated_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT(user_id) DO UPDATE SET
+           username = excluded.username,
+           display_name = excluded.display_name,
+           bio = excluded.bio,
+           updated_at = CURRENT_TIMESTAMP`
+      ).bind(session.user.id, username, displayName, bio).run();
+
+      const profile = await env.DB.prepare(
+        "SELECT username, display_name, bio, created_at, updated_at FROM profiles WHERE user_id = ?"
+      ).bind(session.user.id).first();
+      return json({ success: true, profile });
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (message.toLowerCase().includes("unique")) {
+        return json({ success: false, message: "This username is already taken. Try another one." }, 409);
+      }
+      return json({ success: false, message: "Could not save your profile. Please try again." }, 500);
+    }
+  }
+
+  const publicMatch = url.pathname.match(/^\/api\/public\/profile\/([a-z0-9_]{3,24})$/);
+  if (publicMatch && request.method === "GET") {
+    const username = publicMatch[1].toLowerCase();
+    const profile = await env.DB.prepare(
+      "SELECT username, display_name, bio FROM profiles WHERE username = ?"
+    ).bind(username).first();
+    if (!profile) return json({ success: false, message: "Profile not found" }, 404);
+    const links = await env.DB.prepare(
+      "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
+    ).bind(username).all();
+    return json({ success: true, profile, links: links.results || [] });
+  }
+
+  return null;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "https://links.colony.dpdns.org",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -76,7 +153,32 @@ export default {
       }
 
       try {
-        const auth = createAuth(env);
+        const auth = createAuth(env);        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS profiles (
+            user_id TEXT PRIMARY KEY NOT NULL,
+            username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            display_name TEXT NOT NULL DEFAULT '',
+            bio TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+          )
+        `).run();
+        await env.DB.prepare(`
+          CREATE TABLE IF NOT EXISTS profile_links (
+            id TEXT PRIMARY KEY NOT NULL,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+          )
+        `).run();
+        await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username)").run();
+        await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_profile_links_user ON profile_links(user_id, sort_order)").run();
+
         const { toBeCreated, toBeAdded, runMigrations } = await getMigrations(auth.options);
         if (toBeCreated.length === 0 && toBeAdded.length === 0) {
           return json({ success: true, message: "No migrations needed" });
@@ -93,6 +195,15 @@ export default {
           success: false,
           message: error instanceof Error ? error.message : "Migration failed"
         }, 500);
+      }
+    }
+
+    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/")) {
+      try {
+        const response = await handleProfileRoutes(request, env, url);
+        if (response) return response;
+      } catch (error) {
+        return json({ success: false, message: "Profile service error" }, 500);
       }
     }
 
