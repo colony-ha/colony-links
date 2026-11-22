@@ -391,7 +391,14 @@ async function handleProfileRoutes(request, env, url) {
     return json({ success: true, profile: profile ? { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" } : null });
   }
 
-  if (url.pathname === "/api/account/method" && request.method === "GET") {\n    const session = await getCurrentSession(auth, request);\n    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);\n    const credential = await env.DB.prepare("SELECT 1 AS found FROM account WHERE userId = ? AND providerId = ? LIMIT 1").bind(session.user.id, "credential").first();\n    return json({ success: true, hasPassword: Boolean(credential) });\n  }\n\n  if (url.pathname === "/api/account/username" && request.method === "POST") {
+  if (url.pathname === "/api/account/method" && request.method === "GET") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const credential = await env.DB.prepare("SELECT 1 AS found FROM account WHERE userId = ? AND providerId = ? LIMIT 1").bind(session.user.id, "credential").first();
+    return json({ success: true, hasPassword: Boolean(credential) });
+  }
+
+  if (url.pathname === "/api/account/username" && request.method === "POST") {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     let body;
