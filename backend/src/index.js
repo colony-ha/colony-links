@@ -41,7 +41,7 @@ async function handleProfileRoutes(request, env, url) {
     return json({ success: true, link }, 201);
   }
 
-  const linkMatch = url.pathname.match(/^\\/api\\/profile\\/links\\/([a-zA-Z0-9-]+)$/);
+  const linkMatch = url.pathname.match(/^\/api\/profile\/links\/([a-zA-Z0-9-]+)$/);
   if (linkMatch && (request.method === "PUT" || request.method === "DELETE")) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
