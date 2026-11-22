@@ -12,11 +12,9 @@ async function getCurrentSession(auth, request) {
   return auth.api.getSession({ headers: request.headers });
 }
 
-const PROFILE_TEMPLATE_LEVELS = { classic: 0, minimal: 0, aurora: 1, glass: 1, signature: 2 };
-function canUseProfileTemplate(template, plan) {
-  const levels = { free: 0, pro: 1, business: 2 };
-  return Object.prototype.hasOwnProperty.call(PROFILE_TEMPLATE_LEVELS, template) &&
-    PROFILE_TEMPLATE_LEVELS[template] <= (levels[plan] ?? 0);
+const PROFILE_TEMPLATE_KEYS = new Set(["classic", "minimal", "aurora", "glass", "signature"]);
+function canUseProfileTemplate(template) {
+  return PROFILE_TEMPLATE_KEYS.has(template);
 }
 async function ensureProfileTemplateColumn(env) {
   const columns = await env.DB.prepare("PRAGMA table_info(profiles)").all();
@@ -34,20 +32,9 @@ function isAdminUser(user) {
 }
 
 async function getEffectiveAccess(env, user) {
-  // Administrators bypass all subscription checks and feature limits.
-  if (isAdminUser(user)) {
-    return { plan: "business", unlimited: true, isAdmin: true };
-  }
-
-  const subscription = await env.DB.prepare(
-    "SELECT plan FROM subscriptions WHERE user_id = ? AND status = 'active' AND julianday(ends_at) > julianday('now') ORDER BY julianday(ends_at) DESC, created_at DESC LIMIT 1"
-  ).bind(user.id).first();
-
-  return {
-    plan: subscription?.plan || "free",
-    unlimited: false,
-    isAdmin: false
-  };
+  // COLONY LINKS is free for every account. Admins retain administrative privileges.
+  const isAdmin = isAdminUser(user);
+  return { plan: "free", unlimited: isAdmin, isAdmin };
 }
 
 async function handleAdminRoutes(request, env, url) {
@@ -63,26 +50,6 @@ async function handleAdminRoutes(request, env, url) {
     return json({ success: true, isAdmin: true, admin: { name: session.user.name || "", email } });
   }
 
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, plan TEXT NOT NULL CHECK(plan IN ('free','pro','business')), status TEXT NOT NULL DEFAULT 'active', source TEXT NOT NULL DEFAULT 'admin_free', starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', granted_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
-  if (url.pathname === "/api/admin/subscriptions" && request.method === "GET") {
-    await env.DB.prepare("UPDATE subscriptions SET status = 'expired' WHERE status = 'active' AND julianday(ends_at) <= julianday('now')").run();
-    const result = await env.DB.prepare("SELECT subscriptions.*, user.email, user.name FROM subscriptions JOIN user ON user.id = subscriptions.user_id ORDER BY subscriptions.created_at DESC LIMIT 200").all();
-    return json({ success: true, subscriptions: result.results || [] });
-  }
-  if (url.pathname === "/api/admin/subscriptions/grant" && request.method === "POST") {
-    let body; try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
-    const email = String(body.email || "").trim().toLowerCase();
-    const plan = String(body.plan || "").toLowerCase();
-    const months = Number(body.months);
-    const reason = String(body.reason || "").trim().slice(0, 180);
-    if (!email || !["free","pro","business"].includes(plan) || !Number.isInteger(months) || months < 1 || months > 12) return json({ success: false, message: "Enter a valid account, plan and duration (1–12 months)." }, 400);
-    const target = await env.DB.prepare("SELECT id FROM user WHERE lower(email) = ?").bind(email).first();
-    if (!target) return json({ success: false, message: "Account not found." }, 404);
-    const starts = new Date(); const ends = new Date(starts); ends.setMonth(ends.getMonth() + months);
-    const id = crypto.randomUUID();
-    await env.DB.prepare("INSERT INTO subscriptions (id,user_id,plan,status,source,starts_at,ends_at,reason,granted_by) VALUES (?,?,?,'active','admin_free',?,?,?,?)").bind(id,target.id,plan,starts.toISOString(),ends.toISOString(),reason,session.user.id).run();
-    return json({ success: true, subscription: { id, email, plan, starts_at: starts.toISOString(), ends_at: ends.toISOString(), source: "admin_free" } });
-  }
   if (url.pathname === "/api/admin/users" && request.method === "GET") {
     const query = String(url.searchParams.get("q") || "").trim().slice(0, 100);
     const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1));
@@ -314,7 +281,7 @@ async function handleProfileRoutes(request, env, url) {
     const backgroundStyle = ["glow", "plain", "gradient"].includes(body.backgroundStyle) ? body.backgroundStyle : "glow";
     const templateKey = ["classic","minimal","aurora","glass","signature"].includes(body.templateKey) ? body.templateKey : "classic";
     const access = await getEffectiveAccess(env, session.user);
-    if (!canUseProfileTemplate(templateKey, access.plan)) {
+    if (!canUseProfileTemplate(templateKey)) {
       return json({ success: false, message: "This design is available on a higher plan. Upgrade your plan to use it." }, 403);
     }
     try {
@@ -355,7 +322,7 @@ async function handleProfileRoutes(request, env, url) {
     const { user_id: ownerId, ...publicProfile } = profile;
     const owner = await env.DB.prepare("SELECT id, email FROM user WHERE id = ?").bind(ownerId).first();
     const ownerAccess = await getEffectiveAccess(env, owner || {});
-    if (!canUseProfileTemplate(profile.template_key || "classic", ownerAccess.plan)) profile.template_key = "classic";
+    if (!canUseProfileTemplate(profile.template_key || "classic")) profile.template_key = "classic";
     await env.DB.prepare(`CREATE TABLE IF NOT EXISTS profile_visitors (
       user_id TEXT NOT NULL,
       visitor_hash TEXT NOT NULL,
@@ -407,11 +374,6 @@ function createAuth(env) {
             if (status?.is_disabled) {
               throw new APIError("FORBIDDEN", { message: "This account has been disabled. Contact support." });
             }
-            // Every account receives the permanent Free plan the first time it signs in.
-            // Never replace an existing paid, gifted, or expired subscription history.
-            await env.DB.prepare(
-              "INSERT INTO subscriptions (id,user_id,plan,status,source,starts_at,ends_at,reason,granted_by) SELECT ?,?,'free','active','system_default',?, '9999-12-31T23:59:59.999Z','Default free plan','system' WHERE NOT EXISTS (SELECT 1 FROM subscriptions WHERE user_id = ?)"
-            ).bind(crypto.randomUUID(), session.userId, new Date().toISOString(), session.userId).run();
             return { data: session };
           }
         }
@@ -574,7 +536,6 @@ export default {
     if (url.pathname.startsWith("/api/auth/")) {
       try {
         await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_user_status (user_id TEXT PRIMARY KEY NOT NULL, is_disabled INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
-        await env.DB.prepare(`CREATE TABLE IF NOT EXISTS subscriptions (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL, plan TEXT NOT NULL CHECK(plan IN ('free','pro','business')), status TEXT NOT NULL DEFAULT 'active', source TEXT NOT NULL DEFAULT 'admin_free', starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '', granted_by TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE)`).run();
         const auth = createAuth(env);
         return await auth.handler(request);
       } catch (error) {
