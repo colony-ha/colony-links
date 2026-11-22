@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#090909;--gold:#d6b45b;--gold2:#f0d58b;--text:#f7f4ec;--muted:#aaa394;--line:rgba(214,180,91,.24)}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 8%,rgba(174,129,38,.18),transparent 42%),var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;display:grid;place-items:center;padding:30px 16px}body[lang=ar]{font-family:'Cairo',sans-serif}.card{width:min(430px,100%);text-align:center;padding:34px 27px 27px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(150deg,#1b1913,#0e0e0c 65%);box-shadow:0 25px 90px #000b}.avatar{width:94px;height:94px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#413319,#17130b);border:2px solid var(--gold);color:var(--gold2);font:38px 'Playfair Display',Georgia,serif}.name{font:700 27px 'Playfair Display',Georgia,serif;margin:0}.handle{font-size:13px;color:var(--gold2);margin:6px 0 14px}.bio{font-size:13px;color:var(--muted);line-height:1.7;margin:0 auto 22px;overflow-wrap:anywhere}.links{display:grid;gap:11px}.link{display:block;text-decoration:none;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(110deg,#d9b75f,#f1d994);color:#17130a;font-weight:800;font-size:14px;transition:transform .15s}.link:hover{transform:translateY(-2px)}.empty{font-size:13px;color:var(--muted);padding:17px 0}.brand{display:inline-flex;align-items:center;gap:7px;margin-top:27px;color:#8d8575;text-decoration:none;font-size:10px;letter-spacing:2px;font-weight:800}.brand b{color:var(--gold)}.error{color:var(--muted);padding:35px 0}.loading{color:var(--gold2)}.foot{font-size:10px;color:#6f695d;margin-top:13px}
+:root{--bg:#090909;--accent:#d6b45b;--gold2:#f0d58b;--text:#f7f4ec;--muted:#aaa394;--line:color-mix(in srgb,var(--accent) 28%,transparent)}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;display:grid;place-items:center;padding:30px 16px}body[lang=ar]{font-family:'Cairo',sans-serif}.card{width:min(430px,100%);text-align:center;padding:34px 27px 27px;border:1px solid var(--accent);border-radius:26px;background:linear-gradient(150deg,#1b1913,#0e0e0c 65%);box-shadow:0 25px 90px #000b}.avatar{width:94px;height:94px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#413319,#17130b);border:2px solid var(--accent);color:var(--accent);font:38px 'Playfair Display',Georgia,serif}.name{font:700 27px 'Playfair Display',Georgia,serif;margin:0}.handle{font-size:13px;color:var(--gold2);margin:6px 0 14px}.bio{font-size:13px;color:var(--muted);line-height:1.7;margin:0 auto 22px;overflow-wrap:anywhere}.links{display:grid;gap:11px}.link{display:block;text-decoration:none;padding:14px 16px;border:1px solid var(--accent);border-radius:13px;background:var(--accent);color:#17130a;font-weight:800;font-size:14px;transition:transform .15s}.link:hover{transform:translateY(-2px)}.empty{font-size:13px;color:var(--muted);padding:17px 0}.brand{display:inline-flex;align-items:center;gap:7px;margin-top:27px;color:#8d8575;text-decoration:none;font-size:10px;letter-spacing:2px;font-weight:800}.brand b{color:var(--gold)}.error{color:var(--muted);padding:35px 0}.loading{color:var(--gold2)}.foot{font-size:10px;color:#6f695d;margin-top:13px}.style-glow{background:radial-gradient(ellipse at 50% 8%,color-mix(in srgb,var(--accent) 20%,transparent),transparent 45%),var(--bg)}.style-gradient{background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 25%,var(--bg)),var(--bg) 72%)}.style-plain{background:var(--bg)}.avatar img{width:100%;height:100%;border-radius:inherit;object-fit:cover;display:block}
 </style>
 </head>
 <body>
@@ -25,6 +25,13 @@ async function load(){
   if(!response.ok||!data.success){card.innerHTML='<div class="error">This COLONY LINKS page does not exist yet.</div><a class="brand" href="/">CREATE YOUR PAGE · <b>COLONY LINKS</b></a>';return}
   const profile=data.profile;
   const name=profile.display_name||profile.username;
+  const backgroundColor=/^#[0-9a-f]{6}$/i.test(profile.background_color||"")?profile.background_color:"#090909";
+  const accentColor=/^#[0-9a-f]{6}$/i.test(profile.accent_color||"")?profile.accent_color:"#d6b45b";
+  const backgroundStyle=["glow","plain","gradient"].includes(profile.background_style)?profile.background_style:"glow";
+  document.documentElement.style.setProperty("--bg",backgroundColor);
+  document.documentElement.style.setProperty("--accent",accentColor);
+  document.body.classList.add("style-"+backgroundStyle);
+  const avatar=profile.avatarUrl?'<img src="'+safeText(profile.avatarUrl)+'" alt="">':safeText(name.trim().charAt(0).toUpperCase()||"C");
   const links=(data.links||[]).map(link=>{
    let target;
    try{target=new URL(link.url)}catch{return ""}
@@ -33,7 +40,7 @@ async function load(){
   }).join("");
   document.title=safeText(name)+" · COLONY LINKS";
   document.documentElement.lang="en";
-  card.innerHTML='<div class="avatar">'+safeText(name.trim().charAt(0).toUpperCase()||"C")+'</div><h1 class="name">'+safeText(name)+'</h1><div class="handle">@'+safeText(profile.username)+'</div><p class="bio">'+safeText(profile.bio||"")+'</p><div class="links">'+(links||'<div class="empty">Links will appear here soon.</div>')+'</div><a class="brand" href="/">CREATE · CONNECT · GROW <b>COLONY LINKS</b></a>';
+  card.innerHTML='<div class="avatar">'+avatar+'</div><h1 class="name">'+safeText(name)+'</h1><div class="handle">@'+safeText(profile.username)+'</div><p class="bio">'+safeText(profile.bio||"")+'</p><div class="links">'+(links||'<div class="empty">Links will appear here soon.</div>')+'</div><a class="brand" href="/">CREATE · CONNECT · GROW <b>COLONY LINKS</b></a>';
  }catch(error){card.innerHTML='<div class="error">Could not load this page. Please try again later.</div>'}
 }
 load();
