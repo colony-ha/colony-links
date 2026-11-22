@@ -28,8 +28,8 @@ async function handleAdminRoutes(request, env, url) {
     const page = Math.max(1, Math.min(10000, Number.parseInt(url.searchParams.get("page") || "1", 10) || 1));
     const limit = 25;
     const offset = (page - 1) * limit;
-    const pattern = "%" + query.replace(/[\\%_]/g, "\\async function handleProfileRoutes(request, env, url) {") + "%";
-    const where = query ? "WHERE name LIKE ? ESCAPE '\\\\' OR email LIKE ? ESCAPE '\\\\'" : "";
+    const pattern = "%" + query + "%";
+    const where = query ? "WHERE name LIKE ? OR email LIKE ?" : "";
     const countQuery = "SELECT COUNT(*) AS total FROM user " + where;
     const usersQuery = "SELECT id, name, email, createdAt FROM user " + where + " ORDER BY createdAt DESC LIMIT ? OFFSET ?";
     const countStatement = env.DB.prepare(countQuery);
