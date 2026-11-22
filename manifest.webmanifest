@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "COLONY LINKS",
+  "short_name": "COLONY LINKS",
+  "description": "One beautiful page for everything you create, share and love.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "icons": [
+    {
+      "src": "/Luxury%20Colony%20Links%20Hub.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
