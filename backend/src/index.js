@@ -12,6 +12,34 @@ async function getCurrentSession(auth, request) {
 async function handleProfileRoutes(request, env, url) {
   const auth = createAuth(env);
 
+  if (url.pathname === "/api/profile/avatar" && request.method === "POST") {
+    const session = await getCurrentSession(createAuth(env), request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const form = await request.formData();
+    const file = form.get("avatar");
+    if (!file || typeof file.arrayBuffer !== "function") return json({ success: false, message: "Choose an image first." }, 400);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return json({ success: false, message: "Use a JPG, PNG or WebP image." }, 400);
+    if (file.size > 2 * 1024 * 1024) return json({ success: false, message: "Image must be 2 MB or smaller." }, 413);
+    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+    const key = "avatars/" + session.user.id + "/" + crypto.randomUUID() + "." + extension;
+    await env.MEDIA.put(key, await file.arrayBuffer(), { httpMetadata: { contentType: file.type, cacheControl: "public, max-age=86400" } });
+    await env.DB.prepare("UPDATE profiles SET avatar_key = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?").bind(key, session.user.id).run();
+    return json({ success: true, avatarUrl: "/api/media/avatar/" + encodeURIComponent(key) });
+  }
+
+  const mediaMatch = url.pathname.match(/^\/api\/media\/avatar\/(.+)$/);
+  if (mediaMatch && request.method === "GET") {
+    const key = decodeURIComponent(mediaMatch[1]);
+    if (!key.startsWith("avatars/") || key.includes("..")) return json({ success: false, message: "Not found" }, 404);
+    const object = await env.MEDIA.get(key);
+    if (!object) return json({ success: false, message: "Not found" }, 404);
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set("Cache-Control", "public, max-age=86400");
+    headers.set("X-Content-Type-Options", "nosniff");
+    return new Response(object.body, { headers });
+  }
+
   if (url.pathname === "/api/profile/links" && request.method === "GET") {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
@@ -69,9 +97,9 @@ async function handleProfileRoutes(request, env, url) {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
     const profile = await env.DB.prepare(
-      "SELECT username, display_name, bio, created_at, updated_at FROM profiles WHERE user_id = ?"
+      "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, created_at, updated_at FROM profiles WHERE user_id = ?"
     ).bind(session.user.id).first();
-    return json({ success: true, profile: profile || null });
+    return json({ success: true, profile: profile ? { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" } : null });
   }
 
   if (url.pathname === "/api/profile/me" && request.method === "POST") {
@@ -91,21 +119,27 @@ async function handleProfileRoutes(request, env, url) {
 
     const displayName = String(body.displayName || session.user.name || "").trim().slice(0, 60);
     const bio = String(body.bio || "").trim().slice(0, 160);
+    const backgroundColor = /^#[0-9a-fA-F]{6}$/.test(body.backgroundColor || "") ? body.backgroundColor : "#090909";
+    const accentColor = /^#[0-9a-fA-F]{6}$/.test(body.accentColor || "") ? body.accentColor : "#d6b45b";
+    const backgroundStyle = ["glow", "plain", "gradient"].includes(body.backgroundStyle) ? body.backgroundStyle : "glow";
     try {
       await env.DB.prepare(
-        `INSERT INTO profiles (user_id, username, display_name, bio, created_at, updated_at)
-         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `INSERT INTO profiles (user_id, username, display_name, bio, background_color, accent_color, background_style, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          ON CONFLICT(user_id) DO UPDATE SET
            username = excluded.username,
            display_name = excluded.display_name,
            bio = excluded.bio,
+           background_color = excluded.background_color,
+           accent_color = excluded.accent_color,
+           background_style = excluded.background_style,
            updated_at = CURRENT_TIMESTAMP`
-      ).bind(session.user.id, username, displayName, bio).run();
+      ).bind(session.user.id, username, displayName, bio, backgroundColor, accentColor, backgroundStyle).run();
 
       const profile = await env.DB.prepare(
-        "SELECT username, display_name, bio, created_at, updated_at FROM profiles WHERE user_id = ?"
+        "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style, created_at, updated_at FROM profiles WHERE user_id = ?"
       ).bind(session.user.id).first();
-      return json({ success: true, profile });
+      return json({ success: true, profile: { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" } });
     } catch (error) {
       const message = String(error?.message || "");
       if (message.toLowerCase().includes("unique")) {
@@ -119,13 +153,13 @@ async function handleProfileRoutes(request, env, url) {
   if (publicMatch && request.method === "GET") {
     const username = publicMatch[1].toLowerCase();
     const profile = await env.DB.prepare(
-      "SELECT username, display_name, bio FROM profiles WHERE username = ?"
+      "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style FROM profiles WHERE username = ?"
     ).bind(username).first();
     if (!profile) return json({ success: false, message: "Profile not found" }, 404);
     const links = await env.DB.prepare(
       "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     ).bind(username).all();
-    return json({ success: true, profile, links: links.results || [] });
+    return json({ success: true, profile: { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" }, links: links.results || [] });
   }
 
   return null;
@@ -229,6 +263,19 @@ export default {
             FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
           )
         `).run();
+        const profileColumns = await env.DB.prepare("PRAGMA table_info(profiles)").all();
+        const existingProfileColumns = new Set((profileColumns.results || []).map((column) => column.name));
+        const profileAdditions = [
+          ["avatar_key", "TEXT NOT NULL DEFAULT ''"],
+          ["background_color", "TEXT NOT NULL DEFAULT '#090909'"],
+          ["accent_color", "TEXT NOT NULL DEFAULT '#d6b45b'"],
+          ["background_style", "TEXT NOT NULL DEFAULT 'glow'"]
+        ];
+        for (const [column, definition] of profileAdditions) {
+          if (!existingProfileColumns.has(column)) {
+            await env.DB.prepare("ALTER TABLE profiles ADD COLUMN " + column + " " + definition).run();
+          }
+        }
         await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username)").run();
         await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_profile_links_user ON profile_links(user_id, sort_order)").run();
 
