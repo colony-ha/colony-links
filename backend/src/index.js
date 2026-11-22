@@ -298,7 +298,7 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/")) {
+    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/media/")) {
       try {
         const response = await handleProfileRoutes(request, env, url);
         if (response) return response;
