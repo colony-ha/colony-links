@@ -20,7 +20,44 @@
     [dir="rtl"] .nav,[dir="rtl"] .nav-right{flex-direction:row-reverse}[dir="rtl"] .eyebrow{flex-direction:row-reverse}[dir="rtl"] .hero-copy{text-align:right}[dir="rtl"] .actions{justify-content:flex-start}
     @media(max-width:800px){.hero{grid-template-columns:1fr;gap:18px;padding:65px 0 50px}.hero-content{text-align:center}.eyebrow{justify-content:center}.hero-copy{margin-left:auto;margin-right:auto}.actions{justify-content:center}.visual{min-height:440px}.tag-one{right:2%}.tag-two{left:2%}.features{grid-template-columns:1fr 1fr}.nav-link{display:none}}
     @media(max-width:520px){.wrap{width:min(100% - 28px,1160px)}.nav{height:70px}.brand{font-size:13px}.brand-mark{width:32px;height:32px}.nav-right{gap:9px}.nav-cta{padding:10px 13px;font-size:11px}.hero{padding-top:55px}h1{font-size:48px}.hero-copy{font-size:15px}.visual{min-height:410px}.profile{width:285px}.float-tag{font-size:10px}.features{grid-template-columns:1fr}.section{padding:65px 0}.bottom-cta{margin-bottom:60px}}
-  </style>
+  
+    /* COLONY LINKS signature motion + emerald/blue accents */
+    :root{--emerald:#16d98a;--electric:#28a7ff}
+    body{background:radial-gradient(ellipse at 10% 22%,rgba(15,190,112,.075),transparent 27%),radial-gradient(ellipse at 92% 34%,rgba(26,135,255,.075),transparent 29%),radial-gradient(ellipse at 78% 8%,rgba(157,119,40,.13),transparent 30%),var(--bg);overflow-x:hidden}
+    body:before,body:after{content:"";position:fixed;pointer-events:none;z-index:-1;width:58vw;height:1px;opacity:.55;filter:blur(.3px);transform:rotate(-24deg);animation:ambientSweep 13s ease-in-out infinite alternate}
+    body:before{top:24%;left:-18%;background:linear-gradient(90deg,transparent,var(--emerald),transparent);box-shadow:0 0 18px rgba(22,217,138,.45)}
+    body:after{top:69%;right:-18%;background:linear-gradient(90deg,transparent,var(--electric),transparent);box-shadow:0 0 18px rgba(40,167,255,.45);animation-delay:-6s}
+    @keyframes ambientSweep{from{transform:translate3d(-3%,0,0) rotate(-24deg);opacity:.25}to{transform:translate3d(8%,18px,0) rotate(-18deg);opacity:.7}}
+    .brand-mark{border-color:rgba(214,180,91,.85);box-shadow:inset 0 0 14px rgba(214,180,91,.13),0 0 18px rgba(214,180,91,.12);font-weight:700;position:relative}
+    .brand-mark:after{content:"";position:absolute;width:7px;height:7px;border-radius:50%;right:-3px;top:-3px;background:var(--emerald);box-shadow:0 0 10px var(--emerald)}
+    .hero{position:relative;isolation:isolate}
+    .hero:before{content:"";position:absolute;z-index:-1;inset:8% -10% 0;border-radius:50%;background:linear-gradient(100deg,rgba(22,217,138,.035),transparent 42%,rgba(40,167,255,.045));filter:blur(30px)}
+    .hero-art{min-height:620px;overflow:visible;perspective:1000px}
+    .hub-art{position:relative;z-index:2;display:block;width:min(100%,570px);max-height:720px;object-fit:contain;border-radius:24px;filter:drop-shadow(0 28px 65px rgba(0,0,0,.62)) drop-shadow(0 0 22px rgba(214,180,91,.10));animation:artFloat 7s ease-in-out infinite;transform-origin:50% 55%}
+    @keyframes artFloat{0%,100%{transform:translateY(0) rotateY(-2deg) rotateX(1deg)}50%{transform:translateY(-13px) rotateY(2deg) rotateX(-1deg)}}
+    .art-glow{position:absolute;inset:15% 12%;z-index:0;border-radius:50%;background:conic-gradient(from 45deg,rgba(214,180,91,.16),rgba(22,217,138,.12),rgba(40,167,255,.16),rgba(214,180,91,.16));filter:blur(60px);animation:glowTurn 18s linear infinite}
+    @keyframes glowTurn{to{transform:rotate(360deg)}}
+    .art-orbit{position:absolute;z-index:1;border:1px solid transparent;border-radius:50%;pointer-events:none;inset:14% 4%;transform:rotate(-22deg);opacity:.65}
+    .orbit-gold{border-top-color:rgba(240,213,139,.7);border-bottom-color:rgba(240,213,139,.22);animation:orbitDrift 12s ease-in-out infinite}
+    .orbit-green{inset:22% -2%;border-left-color:rgba(22,217,138,.65);transform:rotate(32deg);animation:orbitDrift 16s ease-in-out infinite reverse}
+    .orbit-blue{inset:9% 12%;border-right-color:rgba(40,167,255,.7);transform:rotate(58deg);animation:orbitDrift 19s ease-in-out infinite}
+    @keyframes orbitDrift{0%,100%{translate:0 0}50%{translate:8px -12px}}
+    .art-chip{position:absolute;z-index:3;display:block;padding:10px 14px;border:1px solid rgba(214,180,91,.28);border-radius:12px;background:rgba(15,15,13,.78);backdrop-filter:blur(12px);color:var(--gold2);font-size:12px;box-shadow:0 12px 35px #0008;animation:chipBob 5s ease-in-out infinite}
+    .chip-one{top:13%;right:-1%}.chip-two{bottom:13%;left:-2%;animation-delay:-2.5s}
+    @keyframes chipBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    .feature,.bottom-cta{position:relative;overflow:hidden;transition:transform .28s ease,border-color .28s ease,box-shadow .28s ease}
+    .feature:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 20%,rgba(22,217,138,.055) 48%,rgba(40,167,255,.055) 58%,transparent 82%);transform:translateX(-120%);transition:transform .7s ease}
+    .feature:hover{transform:translateY(-7px);border-color:rgba(214,180,91,.48);box-shadow:0 18px 45px #0008,0 0 22px rgba(22,217,138,.07)}
+    .feature:hover:after{transform:translateX(120%)}
+    .ico{transition:transform .3s ease,color .3s ease,box-shadow .3s ease}.feature:hover .ico{transform:translateY(-3px) rotate(-7deg);color:#dfffee;box-shadow:0 0 18px rgba(22,217,138,.13)}
+    .primary,.secondary,.nav-cta,.mock-link{transition:transform .2s ease,box-shadow .2s ease,filter .2s ease}.primary:hover,.nav-cta:hover{transform:translateY(-3px);box-shadow:0 12px 34px rgba(214,180,91,.28);filter:brightness(1.06)}.secondary:hover{transform:translateY(-3px);border-color:rgba(40,167,255,.55);box-shadow:0 10px 30px rgba(40,167,255,.09)}
+    .bottom-cta{background:radial-gradient(ellipse at 12% 50%,rgba(22,217,138,.08),transparent 35%),radial-gradient(ellipse at 90% 50%,rgba(40,167,255,.09),transparent 35%),radial-gradient(ellipse at 50% 0%,rgba(214,180,91,.14),transparent 65%),#11100d}
+    .bottom-cta:hover{border-color:rgba(22,217,138,.45);box-shadow:0 20px 60px rgba(0,0,0,.35),0 0 30px rgba(40,167,255,.07)}
+    .trust{position:relative}.trust:before,.trust:after{content:"";display:inline-block;width:34px;height:1px;vertical-align:middle;margin:0 14px;background:linear-gradient(90deg,var(--emerald),var(--gold),var(--electric));box-shadow:0 0 9px rgba(40,167,255,.35)}
+    @media(max-width:800px){.hero-art{min-height:500px}.hub-art{width:min(100%,510px)}.chip-one{right:1%}.chip-two{left:1%}}
+    @media(max-width:520px){.hero-art{min-height:420px}.hub-art{width:100%;border-radius:18px}.art-chip{font-size:9px;padding:8px 10px}.chip-one{top:8%}.chip-two{bottom:7%}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+</style>
 </head>
 <body lang="en" dir="ltr">
   <header class="wrap nav">
@@ -40,10 +77,10 @@
         <div class="actions"><a class="primary" href="signup.html" data-i18n="create">Create your page <span aria-hidden="true">↗</span></a><a class="secondary" href="#features" data-i18n="explore">Explore features</a></div>
         <div class="micro" data-i18n="micro">Simple to create · Easy to share · Made to grow</div>
       </div>
-      <div class="visual" aria-label="Example profile page preview">
-        <div class="glow"></div><div class="float-tag tag-one" data-i18n="tagOne">✦ Your brand, your style</div>
-        <div class="profile"><div class="avatar">C</div><h3>COLONY STUDIO</h3><div class="handle">@colonystudio</div><div class="bio" data-i18n="sampleBio">Creative ideas, useful links and more.</div><a class="mock-link" href="#start" data-i18n="sample1">✦ Discover my website</a><a class="mock-link dark" href="#start" data-i18n="sample2">▶ Watch my latest video</a><a class="mock-link dark" href="#start" data-i18n="sample3">◎ Follow me on Instagram</a><a class="mock-link dark" href="#start" data-i18n="sample4">✉ Get in touch</a><div class="socials">INSTAGRAM　 TIKTOK　 YOUTUBE</div></div>
-        <div class="float-tag tag-two" data-i18n="tagTwo">↗ One link. Endless possibilities.</div>
+      <div class="visual hero-art" aria-label="COLONY LINKS luxury profile preview">
+        <div class="art-orbit orbit-gold"></div><div class="art-orbit orbit-green"></div><div class="art-orbit orbit-blue"></div>
+        <div class="art-glow"></div><img class="hub-art" src="Luxury%20Colony%20Links%20Hub.png" alt="COLONY LINKS — Create, Share, Grow luxury link hub preview" fetchpriority="high">
+        <span class="art-chip chip-one" data-i18n="tagOne">✦ Your brand, your style</span><span class="art-chip chip-two" data-i18n="tagTwo">↗ One link. Endless possibilities.</span>
       </div>
     </section>
     <div class="trust" data-i18n="trust">ALL YOUR IMPORTANT LINKS · ONE BEAUTIFUL PLACE</div>
