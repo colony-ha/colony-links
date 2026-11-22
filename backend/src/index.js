@@ -40,6 +40,27 @@ async function handleProfileRoutes(request, env, url) {
     return new Response(object.body, { headers });
   }
 
+  if (url.pathname === "/api/profile/stats" && request.method === "GET") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    const stats = await env.DB.prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM profile_links WHERE user_id = ?) AS links_created,
+        COALESCE((SELECT SUM(clicks) FROM profile_links WHERE user_id = ?), 0) AS link_clicks,
+        COALESCE((SELECT page_views FROM profiles WHERE user_id = ?), 0) AS page_views`
+    ).bind(session.user.id, session.user.id, session.user.id).first();
+    return json({ success: true, stats: stats || { links_created: 0, link_clicks: 0, page_views: 0 } });
+  }
+
+  if (url.pathname.startsWith("/api/public/click/") && request.method === "GET") {
+    const clickMatch = url.pathname.match(/^\/api\/public\/click\/([a-zA-Z0-9-]+)$/);
+    if (!clickMatch) return json({ success: false, message: "Not found" }, 404);
+    const link = await env.DB.prepare("SELECT url FROM profile_links WHERE id = ? AND is_active = 1").bind(clickMatch[1]).first();
+    if (!link) return json({ success: false, message: "Link not found" }, 404);
+    await env.DB.prepare("UPDATE profile_links SET clicks = clicks + 1 WHERE id = ?").bind(clickMatch[1]).run();
+    return Response.redirect(link.url, 302);
+  }
+
   if (url.pathname === "/api/profile/links" && request.method === "GET") {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
@@ -156,6 +177,7 @@ async function handleProfileRoutes(request, env, url) {
       "SELECT username, display_name, bio, avatar_key, background_color, accent_color, background_style FROM profiles WHERE username = ?"
     ).bind(username).first();
     if (!profile) return json({ success: false, message: "Profile not found" }, 404);
+    await env.DB.prepare("UPDATE profiles SET page_views = page_views + 1 WHERE username = ?").bind(username).run();
     const links = await env.DB.prepare(
       "SELECT id, title, url FROM profile_links WHERE user_id = (SELECT user_id FROM profiles WHERE username = ?) AND is_active = 1 ORDER BY sort_order ASC, created_at ASC"
     ).bind(username).all();
@@ -259,10 +281,21 @@ export default {
             url TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             is_active INTEGER NOT NULL DEFAULT 1,
+            clicks INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
           )
         `).run();
+        const linkColumns = await env.DB.prepare("PRAGMA table_info(profile_links)").all();
+        const existingLinkColumns = new Set((linkColumns.results || []).map((column) => column.name));
+        if (!existingLinkColumns.has("clicks")) {
+          await env.DB.prepare("ALTER TABLE profile_links ADD COLUMN clicks INTEGER NOT NULL DEFAULT 0").run();
+        }
+        const currentProfileColumns = await env.DB.prepare("PRAGMA table_info(profiles)").all();
+        const currentProfileColumnNames = new Set((currentProfileColumns.results || []).map((column) => column.name));
+        if (!currentProfileColumnNames.has("page_views")) {
+          await env.DB.prepare("ALTER TABLE profiles ADD COLUMN page_views INTEGER NOT NULL DEFAULT 0").run();
+        }
         const profileColumns = await env.DB.prepare("PRAGMA table_info(profiles)").all();
         const existingProfileColumns = new Set((profileColumns.results || []).map((column) => column.name));
         const profileAdditions = [
@@ -298,7 +331,7 @@ export default {
       }
     }
 
-    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/media/")) {
+    if (url.pathname.startsWith("/api/profile/") || url.pathname.startsWith("/api/public/profile/") || url.pathname.startsWith("/api/public/click/") || url.pathname.startsWith("/api/media/")) {
       try {
         const response = await handleProfileRoutes(request, env, url);
         if (response) return response;
