@@ -36,7 +36,7 @@ async function load(){
    let target;
    try{target=new URL(link.url)}catch{return ""}
    if(!["http:","https:"].includes(target.protocol))return "";
-   return '<a class="link" href="'+safeText(target.href)+'" target="_blank" rel="noopener noreferrer">'+safeText(link.title)+'</a>';
+   return '<a class="link" href="/api/public/click/'+encodeURIComponent(link.id)+'" target="_blank" rel="noopener noreferrer">'+safeText(link.title)+'</a>';
   }).join("");
   document.title=safeText(name)+" · COLONY LINKS";
   document.documentElement.lang="en";
