@@ -70,7 +70,21 @@ $("authForm").addEventListener("submit",async e=>{
     button.textContent=mode==="signup"?t.create:t.enter;
   }
 });
-$("googleBtn").onclick=()=>showNotice(lang==="ar"?"تسجيل Google غير مفعّل بعد.":lang==="fr"?"La connexion Google n'est pas encore activée.":"Google sign-in is not enabled yet.");
+$("googleBtn").onclick=async()=>{
+  const button=$("googleBtn");
+  button.disabled=true;
+  const original=button.textContent;
+  button.textContent=lang==="ar"?"جارٍ الاتصال بـ Google…":lang==="fr"?"Connexion à Google…":"Connecting to Google…";
+  try{
+    const response=await fetch("/api/auth/sign-in/social",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({provider:"google",callbackURL:"/dashboard.html"})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.url)throw new Error(result.message||result.error?.message||"Google sign-in is not configured yet.");
+    location.href=result.url;
+  }catch(error){
+    showNotice(lang==="ar"?"تعذر بدء تسجيل Google. تأكد من إعداد مفاتيح Google OAuth في الخادم.":lang==="fr"?"Impossible de démarrer Google. Vérifiez les identifiants OAuth Google sur le serveur.":"Could not start Google sign-in. Check the Google OAuth credentials configured on the server.",true);
+    button.disabled=false;button.textContent=original;
+  }
+};
 $("forgot").onclick=e=>{e.preventDefault();$("notice").style.display="block";$("notice").textContent=copy[lang].reset};
 $("year").textContent=new Date().getFullYear();render();
 </script></body></html>
