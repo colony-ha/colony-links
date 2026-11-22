@@ -44,7 +44,10 @@ async function load(){
    let target=String(link.url||"");let parsed;
    try{parsed=new URL(target,location.origin)}catch{return ""}
    if(!["http:","https:","mailto:","tel:"].includes(parsed.protocol))return "";
-   const iconKey=link.icon||link.platform||"website";
+   const detectIconFromUrl=(value)=>{try{const host=new URL(value).hostname.toLowerCase().replace(/^www\\./,"");const rules=[[/instagram\\.com$/,"instagram"],[/facebook\\.com$|fb\\.com$/,"facebook"],[/tiktok\\.com$/,"tiktok"],[/wa\\.me$|whatsapp\\.com$/,"whatsapp"],[/youtube\\.com$|youtu\\.be$/,"youtube"],[/t\\.me$|telegram\\.me$/,"telegram"],[/x\\.com$|twitter\\.com$/,"x"],[/linkedin\\.com$/,"linkedin"],[/snapchat\\.com$/,"snapchat"],[/pinterest\\.com$|pin\\.it$/,"pinterest"],[/maps\\.google\\.|maps\\.app\\.goo\\.gl$/,"google_maps"],[/spotify\\.com$/,"spotify"],[/discord\\.com$|discord\\.gg$/,"discord"],[/twitch\\.tv$/,"twitch"],[/reddit\\.com$/,"reddit"],[/github\\.com$/,"github"],[/threads\\.net$/,"threads"],[/medium\\.com$/,"medium"],[/behance\\.net$/,"behance"],[/dribbble\\.com$/,"dribbble"],[/soundcloud\\.com$/,"soundcloud"]];return rules.find(([pattern])=>pattern.test(host))?.[1]||""}catch{return ""}};
+   const platformKey=link.platform||"website";
+   const savedIcon=link.icon||"";
+   const iconKey=savedIcon&&savedIcon!=="website"&&savedIcon!=="link"?savedIcon:(platformKey!=="website"?platformKey:(savedIcon||detectIconFromUrl(target)||"website"));
    const icon=link.custom_icon?'<img src="'+safeText(link.custom_icon)+'" alt="">':'<i class="'+(iconClasses[iconKey]||"fa-solid fa-link")+'" aria-hidden="true"></i>';
    const href=["http:","https:"].includes(parsed.protocol)?"/api/public/click/"+encodeURIComponent(link.id):target;
    const external=["http:","https:"].includes(parsed.protocol);
