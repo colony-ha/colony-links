@@ -328,6 +328,23 @@ async function handleProfileRoutes(request, env, url) {
     return json({ success: true, profile: profile ? { ...profile, avatarUrl: profile.avatar_key ? "/api/media/avatar/" + encodeURIComponent(profile.avatar_key) : "" } : null });
   }
 
+  if (url.pathname === "/api/account/username" && request.method === "POST") {
+    const session = await getCurrentSession(auth, request);
+    if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
+    let body;
+    try { body = await request.json(); } catch { return json({ success: false, message: "Invalid JSON" }, 400); }
+    const username = String(body.username || "").trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_]{2,23}$/.test(username)) return json({ success: false, message: "Username must be 3–24 characters and use lowercase letters, numbers or underscores." }, 400);
+    if (RESERVED_USERNAMES.has(username)) return json({ success: false, message: "This username is reserved. Please choose another one." }, 409);
+    try {
+      await env.DB.prepare("INSERT INTO profiles (user_id, username) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET username = excluded.username, updated_at = CURRENT_TIMESTAMP").bind(session.user.id, username).run();
+      return json({ success: true, username });
+    } catch (error) {
+      if (String(error?.message || "").toLowerCase().includes("unique")) return json({ success: false, message: "This username is already taken. Try another one." }, 409);
+      return json({ success: false, message: "Could not update your username." }, 500);
+    }
+  }
+
   if (url.pathname === "/api/profile/me" && request.method === "POST") {
     const session = await getCurrentSession(auth, request);
     if (!session?.user) return json({ success: false, message: "Unauthorized" }, 401);
