@@ -14,6 +14,27 @@
 .template-aurora .card{background:linear-gradient(145deg,#17142d,#0d1022 65%);border-color:#9b8cff;box-shadow:0 25px 90px #5e45c755}.template-aurora .avatar{border-color:#9b8cff;color:#d8d0ff;background:#282044}.template-aurora .handle{color:#c3b8ff}.template-aurora .link{background:linear-gradient(100deg,#8b7cf6,#57c8d4);border:0;color:#111026;border-radius:999px}
 .template-glass .card{background:linear-gradient(145deg,#ffffff1c,#ffffff08);backdrop-filter:blur(18px);border-color:#ffffff55;box-shadow:0 25px 90px #0008}.template-glass .link{background:#ffffff16;color:#f7f4ec;border-color:#ffffff66;backdrop-filter:blur(10px)}.template-glass .avatar{background:#ffffff18;border-color:#ffffff88}
 .template-signature .card{width:min(500px,100%);padding:48px 34px 36px;border:2px solid #d6b45b;border-radius:4px;background:linear-gradient(145deg,#201a0e,#090909 70%);box-shadow:0 25px 100px #000b}.template-signature .name{font-size:34px;letter-spacing:.3px}.template-signature .avatar{width:112px;height:112px;border-radius:26px}.template-signature .link{border-radius:4px;letter-spacing:.4px;background:transparent;color:#f0d58b}.template-signature .brand{color:#d6b45b}
+
+/* Responsive public profile card sizing */
+body{padding:16px 12px}
+.card{width:min(560px,100%);padding:38px 30px 30px}
+@media(max-width:600px){
+  body{padding:12px 10px;min-height:100svh}
+  .card{width:100%;max-width:none;padding:30px 22px 24px;border-radius:24px}
+  .avatar{width:104px;height:104px;margin-bottom:18px}
+  .name{font-size:30px}
+  .handle{font-size:15px}
+  .bio{font-size:15px;margin-bottom:24px}
+  .links{gap:13px}
+  .link{padding:16px 17px;min-height:68px;font-size:16px}
+  .link-icon{width:40px;height:40px;flex-basis:40px;font-size:19px}
+  .brand{margin-top:24px}
+}
+@media(max-width:360px){
+  .card{padding:25px 16px 20px}
+  .link{padding:13px 14px;font-size:15px}
+}
+
 </style>
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">
